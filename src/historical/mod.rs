@@ -1,7 +1,6 @@
 use crate::alias::Date;
 use log::info;
 use std::collections::HashMap;
-use std::result;
 
 use crate::error::Error;
 use crate::marketdata::Instrument;

@@ -1,5 +1,3 @@
-use chrono::TimeZone;
-use chrono::Utc;
 use clap::Parser;
 use env_logger::Builder;
 use log::info;
