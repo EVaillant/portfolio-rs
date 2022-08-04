@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+  schedule:
+  - cron: "0 2 * * 1"
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  build:
+    name: Build and Test on rust ${{ matrix.rust }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { rust: stable,           os: ubuntu-22.04 }
+          - { rust: beta,             os: ubuntu-22.04 }
+          - { rust: nightly,          os: ubuntu-22.04 }
+    steps:
+      - uses: actions/checkout@v2
+      - uses: hecrj/setup-rust-action@v1
+        with:
+          rust-version: ${{ matrix.rust }}
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -y -qq
+          sudo apt-get install libsqlite3-dev
+      - name: Build      
+        run: |
+          cargo build --verbose
+      - name: Test
+        run: |
+          cargo test --verbose
+      - name: Build Example
+        run: |
+          cargo build --examples --verbose
+
+  clippy:
+    name: Lint with clippy
+    runs-on: ubuntu-20.04
+    env:
+      RUSTFLAGS: -Dwarnings
+    steps:
+      - uses: actions/checkout@v2
+      - uses: hecrj/setup-rust-action@v1
+        with:
+          components: clippy
+      - run: |
+          cargo clippy --workspace --all-targets --verbose
+
+  rustfmt:
+    name: Verify code formatting
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+      - uses: hecrj/setup-rust-action@v1
+        with:
+          components: rustfmt
+      - run: cargo fmt --all -- --check

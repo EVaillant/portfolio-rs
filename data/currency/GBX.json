@@ -1,0 +1,7 @@
+{
+  "name" : "GBX",
+  "parent_currency" : {
+    "factor" : 100.0,
+    "currency" : "GBP"
+  }
+}
