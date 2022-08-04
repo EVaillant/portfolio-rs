@@ -53,7 +53,7 @@ jobs:
         with:
           components: clippy
       - run: |
-          cargo clippy --workspace --all-targets --verbose
+          cargo clippy --workspace --all-targets --verbose -- -A dead-code
 
   rustfmt:
     name: Verify code formatting
