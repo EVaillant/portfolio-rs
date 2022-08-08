@@ -9,10 +9,12 @@ mod historical;
 mod marketdata;
 mod persistence;
 mod portfolio;
+mod pricer;
 mod referential;
 
 use historical::{HistoricalData, YahooProvider};
 use persistence::SQLitePersistance;
+use pricer::PortfolioIndicator;
 use referential::Referential;
 
 /// Simple program to greet a person
@@ -62,18 +64,45 @@ fn main() {
     let provider = YahooProvider::new().expect("failed to create yahoo provider");
     let mut histo = HistoricalData::new(provider);
 
-    info!("request instrument historic data");
+    // request data on each instrument
     let today = chrono::Utc::now().date();
+    let mut date_iter = today;
     for position in portfolio.positions.iter() {
-        if let Some(trade) = position.trades.get(0) {
+        if let Some(trade) = position.trades.first() {
+            date_iter = std::cmp::min(date_iter, trade.date.date());
             histo
-                .request(
-                    &persistence,
-                    &position.instrument,
-                    trade.date.date(),
-                    today.succ(),
-                )
+                .request(&persistence, &position.instrument, trade.date.date(), today)
                 .expect("failed to request data");
+        }
+    }
+
+    //
+    // compute pnl & valuations
+    while date_iter < today {
+        let date = date_iter.and_hms(23, 59, 00);
+        date_iter = date_iter.succ();
+
+        let portfolio_indicator = PortfolioIndicator::from_portfolio(&portfolio, date);
+        let valuations = portfolio_indicator.valuations();
+        let pnl = match portfolio_indicator.pnl(&histo) {
+            Some(value) => value,
+            None => continue,
+        };
+
+        println!("{};all;{};{};;", date.format("%Y-%m-%d"), valuations, pnl);
+        for (instrument, position_indicator) in portfolio_indicator.positions.iter() {
+            let close = histo.get(instrument, date.date()).unwrap().close;
+            let valuations = position_indicator.valuations();
+            let pnl = position_indicator.pnl(close);
+            println!(
+                "{};{};{};{};{};{}",
+                date.format("%Y-%m-%d"),
+                instrument.name,
+                valuations,
+                pnl,
+                position_indicator.unit_price,
+                position_indicator.quantity,
+            );
         }
     }
 }

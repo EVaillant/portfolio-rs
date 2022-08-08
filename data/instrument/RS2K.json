@@ -1,0 +1,7 @@
+{
+  "name" : "RS2K",
+  "description" : "Amundi Russell 2000 UCITS ETF - EUR (C)",
+  "market" : "EPA",
+  "currency" : "EUR",
+  "ticker_yahoo" : "RS2K.PA"
+}

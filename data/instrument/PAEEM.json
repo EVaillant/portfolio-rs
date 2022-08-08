@@ -1,0 +1,7 @@
+{
+  "name" : "PAEEM",
+  "description" : "Amundi ETF PEA MSCI Emerg Mkts UCITS ETF EUR C/D",
+  "market" : "EPA",
+  "currency" : "EUR",
+  "ticker_yahoo" : "PAEEM.PA"
+}

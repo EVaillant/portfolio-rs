@@ -1,9 +1,9 @@
+use crate::alias::DateTime;
 use crate::portfolio::Way;
-use chrono::{DateTime, Utc};
 
 #[derive(Debug)]
 pub struct Trade {
-    pub date: DateTime<Utc>,
+    pub date: DateTime,
     pub way: Way,
     pub quantity: u32,
     pub price: f64,

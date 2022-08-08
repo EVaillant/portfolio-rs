@@ -143,9 +143,12 @@ where
         Ok(())
     }
 
-    pub fn iter(&self, instrument: &Instrument) -> Option<std::slice::Iter<P::DataFrame>> {
-        self.cache
-            .get(&instrument.name)
-            .map(|item| item.datas.iter())
+    pub fn get(&self, instrument: &Instrument, date: Date) -> Option<&P::DataFrame> {
+        match self.cache.get(&instrument.name) {
+            Some(item) => &item.datas,
+            None => return None,
+        }
+        .iter()
+        .find(|item| *item.date() == date)
     }
 }

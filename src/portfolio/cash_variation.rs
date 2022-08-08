@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use crate::alias::DateTime;
 
 #[derive(Debug)]
 pub enum CashVariationSource {
@@ -10,6 +10,6 @@ pub enum CashVariationSource {
 #[derive(Debug)]
 pub struct CashVariation {
     pub position: f64,
-    pub date: DateTime<Utc>,
+    pub date: DateTime,
     pub source: CashVariationSource,
 }

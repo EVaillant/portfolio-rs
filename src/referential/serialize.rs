@@ -1,6 +1,6 @@
-use crate::alias::DateTime;
+use crate::alias::{Date, DateTime};
 use crate::error::{Error, ErrorKind};
-use crate::marketdata::{Currency, Instrument, Market, ParentCurrency};
+use crate::marketdata::{Currency, Dividend, Instrument, Market, ParentCurrency};
 use crate::portfolio::{CashVariation, CashVariationSource, Portfolio, Position, Trade, Way};
 
 use serde_json::Value;
@@ -244,6 +244,23 @@ impl Deserialize for DateTime {
     }
 }
 
+impl Deserialize for Date {
+    fn deserialize<D>(deserializer: D) -> Result<Self, Error>
+    where
+        D: Deserializer,
+    {
+        let value: String = deserializer.read_string()?;
+        let result = chrono::NaiveDate::parse_from_str(&value, "%Y-%m-%d");
+        match result {
+            Ok(value) => Ok(Date::from_utc(value, chrono::Utc)),
+            Err(err) => Err(Error::new(
+                ErrorKind::Referential,
+                format!("unable to convert {} into Date because {}", value, err),
+            )),
+        }
+    }
+}
+
 impl Deserialize for Trade {
     fn deserialize<D>(mut deserializer: D) -> Result<Self, Error>
     where
@@ -332,12 +349,14 @@ impl Deserialize for Instrument {
         let market = deserializer.resolv_market("market")?;
         let currency = deserializer.resolv_currency("currency")?;
         let ticker_yahoo = deserializer.read_option("ticker_yahoo")?;
+        let dividends = deserializer.read_option("dividends")?;
         Ok(Instrument {
             name,
             description,
             market,
             currency,
             ticker_yahoo,
+            dividends,
         })
     }
 }
@@ -350,6 +369,17 @@ impl Deserialize for ParentCurrency {
         let factor = deserializer.read("factor")?;
         let currency = deserializer.resolv_currency("currency")?;
         Ok(ParentCurrency { factor, currency })
+    }
+}
+
+impl Deserialize for Dividend {
+    fn deserialize<D>(mut deserializer: D) -> Result<Self, Error>
+    where
+        D: Deserializer,
+    {
+        let date = deserializer.read("date")?;
+        let value = deserializer.read("value")?;
+        Ok(Dividend { date, value })
     }
 }
 

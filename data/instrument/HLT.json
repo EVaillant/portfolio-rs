@@ -1,0 +1,7 @@
+{
+  "name" : "HLT",
+  "description" : "Lyxor STOXX Europe 600 Healthcare UCITS ETF - Acc",
+  "market" : "EPA",
+  "currency" : "EUR",
+  "ticker_yahoo" : "HLT.PA"
+}
