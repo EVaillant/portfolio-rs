@@ -1,5 +1,4 @@
 use crate::alias::DateTime;
-use crate::historical::{DataFrame, HistoricalData, Provider};
 use crate::marketdata::Instrument;
 use crate::portfolio::{Portfolio, Position, Way};
 
@@ -120,17 +119,14 @@ impl PortfolioIndicator {
             .sum()
     }
 
-    pub fn pnl<P>(&self, histo: &HistoricalData<P>) -> Option<f64>
+    pub fn pnl<F>(&self, spotter: F) -> Option<f64>
     where
-        P: Provider,
-        <P as Provider>::DataFrame: DataFrame,
+        F: Fn(&Instrument, DateTime) -> Option<f64>,
     {
         self.positions
             .iter()
             .map(|(instrument, position_indicator)| {
-                histo
-                    .get(instrument, self.date.date())
-                    .map(|item| position_indicator.pnl(item.close()))
+                spotter(instrument, self.date).map(|price| position_indicator.pnl(price))
             })
             .fold(Some(0.0), |accu, value| match (accu, value) {
                 (None, _) => None,

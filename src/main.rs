@@ -84,7 +84,9 @@ fn main() {
 
         let portfolio_indicator = PortfolioIndicator::from_portfolio(&portfolio, date);
         let valuations = portfolio_indicator.valuations();
-        let pnl = match portfolio_indicator.pnl(&histo) {
+        let pnl = match portfolio_indicator
+            .pnl(|instrument, date| histo.get(instrument, date.date()).map(|value| value.close))
+        {
             Some(value) => value,
             None => continue,
         };
