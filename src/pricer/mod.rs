@@ -102,11 +102,8 @@ impl PortfolioIndicator {
     pub fn from_portfolio(portfolio: &Portfolio, date: DateTime) -> Self {
         let mut positions = HashMap::new();
         for position in portfolio.positions.iter() {
-            match PositionIndicator::from_position(position, date) {
-                Some(indicator) => {
-                    positions.insert(position.instrument.clone(), indicator);
-                }
-                None => {}
+            if let Some(indicator) = PositionIndicator::from_position(position, date) {
+                positions.insert(position.instrument.clone(), indicator);
             }
         }
         Self { date, positions }

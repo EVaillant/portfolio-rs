@@ -124,7 +124,7 @@ impl YahooProvider {
         let re = Regex::new(r#""CrumbStore":\{"crumb":"(.+?)"\}"#).unwrap();
         let mut crumb: String = "".to_string();
         for cap in re.captures_iter(&body) {
-            crumb = (&cap[0]).to_string();
+            crumb = cap[0].to_string();
         }
         Ok(crumb.chars().skip(23).take(11).collect())
     }
