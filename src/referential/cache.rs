@@ -27,7 +27,7 @@ impl Cache {
     {
         self.currencies
             .iter()
-            .find(|currency| predicate(*currency))
+            .find(|currency| predicate(currency))
             .cloned()
     }
 
@@ -42,7 +42,7 @@ impl Cache {
     {
         self.markets
             .iter()
-            .find(|market| predicate(*market))
+            .find(|market| predicate(market))
             .cloned()
     }
 
@@ -57,7 +57,7 @@ impl Cache {
     {
         self.instruments
             .iter()
-            .find(|instrument| predicate(*instrument))
+            .find(|instrument| predicate(instrument))
             .cloned()
     }
 }

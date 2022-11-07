@@ -112,8 +112,8 @@ impl Referential {
     fn build_marketdata_filename(&self, kind: &str, name: &str) -> Result<PathBuf, Error> {
         let mut filename = PathBuf::new();
         filename.push(&self.marketdata_dir);
-        filename.push(&kind);
-        filename.push(&name);
+        filename.push(kind);
+        filename.push(name);
         filename.set_extension("json");
         if !filename.is_file() {
             return Err(Error::new(
