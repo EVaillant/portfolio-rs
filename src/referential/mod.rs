@@ -104,7 +104,7 @@ impl Referential {
     }
 
     pub fn load_portfolio(&mut self, filename: &str) -> Result<Portfolio, Error> {
-        let file = File::open(&filename)?;
+        let file = File::open(filename)?;
         let reader = BufReader::new(file);
         serialize::from_reader(reader, self)
     }
