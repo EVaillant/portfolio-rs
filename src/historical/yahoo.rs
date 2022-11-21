@@ -32,7 +32,7 @@ where
     let buf = String::deserialize(deserializer)?;
     let result =
         chrono::NaiveDate::parse_from_str(&buf, "%Y-%m-%d").map_err(serde::de::Error::custom)?;
-    Ok(Date::from_utc(result, chrono::Utc))
+    Ok(result)
 }
 
 impl DataFrame for YahooDataFrame {
@@ -136,7 +136,7 @@ impl YahooProvider {
         begin: Date,
         end: Date,
     ) -> Result<Vec<YahooDataFrame>, Error> {
-        let output = self.reqwest_client.get(format!("https://query1.finance.yahoo.com/v7/finance/download/{}?period1={}&period2={}&interval=1d&events=history&crumb={}", ticker, begin.and_hms(0, 0, 0).timestamp(), end.and_hms(0, 0, 0).timestamp(), crumb))
+        let output = self.reqwest_client.get(format!("https://query1.finance.yahoo.com/v7/finance/download/{}?period1={}&period2={}&interval=1d&events=history&crumb={}", ticker, begin.and_hms_opt(0, 0, 0).unwrap().timestamp(), end.and_hms_opt(0, 0, 0).unwrap().timestamp(), crumb))
         .send()
         .map_err(|error| {
             Error::new(ErrorKind::Historical,format!("failed to request historic ticker:{} error:{}",

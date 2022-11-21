@@ -19,7 +19,7 @@ impl rusqlite::types::FromSql for SQLiteDate {
                     .map_err(|_| rusqlite::types::FromSqlError::InvalidType)?;
                 let naive_date = chrono::NaiveDate::parse_from_str(str_txt, "%Y-%m-%d");
                 match naive_date {
-                    Ok(value) => Ok(SQLiteDate(Date::from_utc(value, chrono::Utc))),
+                    Ok(value) => Ok(SQLiteDate(value)),
                     Err(_) => Err(rusqlite::types::FromSqlError::InvalidType),
                 }
             }

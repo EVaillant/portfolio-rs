@@ -1,2 +1,2 @@
-pub type Date = chrono::Date<chrono::Utc>;
-pub type DateTime = chrono::DateTime<chrono::Utc>;
+pub type Date = chrono::NaiveDate;
+pub type DateTime = chrono::NaiveDateTime;

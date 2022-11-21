@@ -65,7 +65,7 @@ fn main() {
     let mut histo = HistoricalData::new(provider);
 
     // request data on each instrument
-    let today = chrono::Utc::now().date();
+    let today = chrono::Utc::now().date_naive();
     let mut date_iter = today;
     for position in portfolio.positions.iter() {
         if let Some(trade) = position.trades.first() {
@@ -79,8 +79,8 @@ fn main() {
     //
     // compute pnl & valuations
     while date_iter < today {
-        let date = date_iter.and_hms(23, 59, 00);
-        date_iter = date_iter.succ();
+        let date = date_iter.and_hms_opt(23, 59, 00).unwrap();
+        date_iter = date_iter.succ_opt().unwrap();
 
         let portfolio_indicator = PortfolioIndicator::from_portfolio(&portfolio, date);
         let valuations = portfolio_indicator.valuations();

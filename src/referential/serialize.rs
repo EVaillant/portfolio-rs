@@ -235,7 +235,7 @@ impl Deserialize for DateTime {
         let value: String = deserializer.read_string()?;
         let result = chrono::DateTime::parse_from_rfc3339(value.as_str());
         match result {
-            Ok(value) => Ok(value.into()),
+            Ok(value) => Ok(value.naive_local()),
             Err(err) => Err(Error::new(
                 ErrorKind::Referential,
                 format!("unable to convert {} into Date because {}", value, err),
@@ -252,7 +252,7 @@ impl Deserialize for Date {
         let value: String = deserializer.read_string()?;
         let result = chrono::NaiveDate::parse_from_str(&value, "%Y-%m-%d");
         match result {
-            Ok(value) => Ok(Date::from_utc(value, chrono::Utc)),
+            Ok(value) => Ok(value),
             Err(err) => Err(Error::new(
                 ErrorKind::Referential,
                 format!("unable to convert {} into Date because {}", value, err),
