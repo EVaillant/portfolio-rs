@@ -65,7 +65,7 @@ impl Referential {
             Some(value) => Ok(value),
             None => {
                 let filename = self.build_marketdata_filename("market", name)?;
-                let file = File::open(&filename)?;
+                let file = File::open(filename)?;
                 let reader = BufReader::new(file);
                 let market = serialize::from_reader(reader, self)?;
                 Ok(self.cache.add_market(market))
@@ -79,7 +79,7 @@ impl Referential {
             Some(value) => Ok(value),
             None => {
                 let filename = self.build_marketdata_filename("currency", name)?;
-                let file = File::open(&filename)?;
+                let file = File::open(filename)?;
                 let reader = BufReader::new(file);
                 let currency = serialize::from_reader(reader, self)?;
                 Ok(self.cache.add_currency(currency))
@@ -95,7 +95,7 @@ impl Referential {
             Some(value) => Ok(value),
             None => {
                 let filename = self.build_marketdata_filename("instrument", name)?;
-                let file = File::open(&filename)?;
+                let file = File::open(filename)?;
                 let reader = BufReader::new(file);
                 let instrument = serialize::from_reader(reader, self)?;
                 Ok(self.cache.add_instrument(instrument))
