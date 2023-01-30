@@ -85,7 +85,7 @@ impl YahooProvider {
             .map_err(|error| {
                 Error::new(
                     ErrorKind::Historical,
-                    format!("failed to init reqwest : {}", error),
+                    format!("failed to init reqwest : {error}"),
                 )
             })?;
 
@@ -97,17 +97,13 @@ impl YahooProvider {
     fn request_crumb(&self, ticker: &String) -> Result<String, Error> {
         let mut body = String::new();
         self.reqwest_client
-            .get(format!(
-                "https://finance.yahoo.com/quote/{}/history",
-                ticker
-            ))
+            .get(format!("https://finance.yahoo.com/quote/{ticker}/history"))
             .send()
             .map_err(|error| {
                 Error::new(
                     ErrorKind::Historical,
                     format!(
-                        "request failed to get history to have crumb ticker:{} error:{}",
-                        ticker, error
+                        "request failed to get history to have crumb ticker:{ticker} error:{error}"
                     ),
                 )
             })?
@@ -116,9 +112,7 @@ impl YahooProvider {
                 Error::new(
                     ErrorKind::Historical,
                     format!(
-                        "request failed to get body of history to have crumb ticker:{} error:{}",
-                        ticker, error
-                    ),
+                        "request failed to get body of history to have crumb ticker:{ticker} error:{error}"),
                 )
             })?;
         let re = Regex::new(r#""CrumbStore":\{"crumb":"(.+?)"\}"#).unwrap();
@@ -139,16 +133,12 @@ impl YahooProvider {
         let output = self.reqwest_client.get(format!("https://query1.finance.yahoo.com/v7/finance/download/{}?period1={}&period2={}&interval=1d&events=history&crumb={}", ticker, begin.and_hms_opt(0, 0, 0).unwrap().timestamp(), end.and_hms_opt(0, 0, 0).unwrap().timestamp(), crumb))
         .send()
         .map_err(|error| {
-            Error::new(ErrorKind::Historical,format!("failed to request historic ticker:{} error:{}",
-                ticker, error
-            ))
+            Error::new(ErrorKind::Historical,format!("failed to request historic ticker:{ticker} error:{error}"))
         })?
         .text()
         .map_err(|error| {
             Error::new(ErrorKind::Historical,format!(
-                "failed to read body from request historic ticker:{} error:{}",
-                ticker, error
-            ))
+                "failed to read body from request historic ticker:{ticker} error:{error}"))
         })?;
         let mut csv_reader = csv::Reader::from_reader(output.as_bytes());
         let mut data_frames = Vec::new();
@@ -156,10 +146,7 @@ impl YahooProvider {
             let record: YahooDataFrame = result.map_err(|error| {
                 Error::new(
                     ErrorKind::Historical,
-                    format!(
-                        "invalid csv format ticker:{} error:{} csv:{}",
-                        ticker, error, output
-                    ),
+                    format!("invalid csv format ticker:{ticker} error:{error} csv:{output}"),
                 )
             })?;
             data_frames.push(record);

@@ -16,7 +16,7 @@ impl serialize::Resolver for Referential {
         self.get_currency_by_name(name).map_err(|err| {
             Error::new(
                 ErrorKind::Referential,
-                format!("unable to resolv {} because {:?}", name, err),
+                format!("unable to resolv {name} because {err:?}"),
             )
         })
     }
@@ -25,7 +25,7 @@ impl serialize::Resolver for Referential {
         self.get_market_by_name(name).map_err(|err| {
             Error::new(
                 ErrorKind::Referential,
-                format!("unable to resolv {} because {:?}", name, err),
+                format!("unable to resolv {name} because {err:?}"),
             )
         })
     }
@@ -34,7 +34,7 @@ impl serialize::Resolver for Referential {
         self.get_instrument_by_name(name).map_err(|err| {
             Error::new(
                 ErrorKind::Referential,
-                format!("unable to resolv {} because {:?}", name, err),
+                format!("unable to resolv {name} because {err:?}"),
             )
         })
     }

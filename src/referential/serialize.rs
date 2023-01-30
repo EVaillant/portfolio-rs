@@ -8,10 +8,7 @@ use std::rc::Rc;
 
 impl From<serde_json::Error> for Error {
     fn from(error: serde_json::Error) -> Self {
-        Error::new(
-            ErrorKind::Referential,
-            format!("not json format : {}", error),
-        )
+        Error::new(ErrorKind::Referential, format!("not json format : {error}"))
     }
 }
 
@@ -65,10 +62,7 @@ impl<'a, R: Resolver> Deserializer for DeserializerValue<'a, R> {
             .ok_or_else(|| Error::new(ErrorKind::Referential, "field must be an object"))?
             .get(name)
             .ok_or_else(|| {
-                Error::new(
-                    ErrorKind::Referential,
-                    format!("field {} is mandatory", name),
-                )
+                Error::new(ErrorKind::Referential, format!("field {name} is mandatory"))
             })?;
         let sub_deserializer = DeserializerValue {
             value,
@@ -203,7 +197,7 @@ impl Deserialize for Way {
             "sell" => Ok(Self::Sell),
             _ => Err(Error::new(
                 ErrorKind::Referential,
-                format!("unable to convert {} into Way", value),
+                format!("unable to convert {value} into Way"),
             )),
         }
     }
@@ -221,7 +215,7 @@ impl Deserialize for CashVariationSource {
             "dividend" => Ok(Self::Dividend),
             _ => Err(Error::new(
                 ErrorKind::Referential,
-                format!("unable to convert {} into CashVariationSource", value),
+                format!("unable to convert {value} into CashVariationSource"),
             )),
         }
     }
@@ -238,7 +232,7 @@ impl Deserialize for DateTime {
             Ok(value) => Ok(value.naive_local()),
             Err(err) => Err(Error::new(
                 ErrorKind::Referential,
-                format!("unable to convert {} into Date because {}", value, err),
+                format!("unable to convert {value} into Date because {err}"),
             )),
         }
     }
@@ -255,7 +249,7 @@ impl Deserialize for Date {
             Ok(value) => Ok(value),
             Err(err) => Err(Error::new(
                 ErrorKind::Referential,
-                format!("unable to convert {} into Date because {}", value, err),
+                format!("unable to convert {value} into Date because {err}"),
             )),
         }
     }

@@ -6,7 +6,7 @@ use rusqlite::{Connection, Result};
 
 impl From<rusqlite::Error> for Error {
     fn from(error: rusqlite::Error) -> Self {
-        Error::new(ErrorKind::Persistance, format!("sqlite error : {}", error))
+        Error::new(ErrorKind::Persistance, format!("sqlite error : {error}"))
     }
 }
 
