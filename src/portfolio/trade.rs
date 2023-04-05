@@ -5,7 +5,7 @@ use crate::portfolio::Way;
 pub struct Trade {
     pub date: DateTime,
     pub way: Way,
-    pub quantity: u32,
+    pub quantity: f64,
     pub price: f64,
     pub tax: f64,
 }

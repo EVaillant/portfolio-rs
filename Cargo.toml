@@ -4,13 +4,13 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-env_logger = "0.9.0"
+env_logger = "0.10.0"
 log = "0.4"
 chrono = "0.4.19"
-clap = { version = "3.2.8", features = ["derive"] }
+clap = { version = "4.1.11", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0"
 reqwest = {version = "0.11.11", features = ["blocking", "cookies"] }
 regex = "1.6.0"
 csv = "1.1"
-rusqlite = "0.28.0"
+rusqlite = "0.29.0"

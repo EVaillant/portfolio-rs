@@ -12,9 +12,9 @@ mod portfolio;
 mod pricer;
 mod referential;
 
-use historical::{HistoricalData, YahooProvider};
+use historical::{HistoricalData, YahooRequester};
 use persistence::SQLitePersistance;
-use pricer::PortfolioIndicator;
+use pricer::{PortfolioIndicators, Step};
 use referential::Referential;
 
 /// Simple program to greet a person
@@ -61,24 +61,34 @@ fn main() {
 
     //
     // historical data
-    let provider = YahooProvider::new().expect("failed to create yahoo provider");
-    let mut histo = HistoricalData::new(provider);
+    let requester = YahooRequester::new().expect("failed to create yahoo requester");
+    let mut provider = HistoricalData::new(requester, &persistence);
 
-    // request data on each instrument
+    //
+    // compute main portfolio
     let today = chrono::Utc::now().date_naive();
-    let mut date_iter = today;
-    for position in portfolio.positions.iter() {
-        if let Some(trade) = position.trades.first() {
-            date_iter = std::cmp::min(date_iter, trade.date.date());
-            histo
-                .request(&persistence, &position.instrument, trade.date.date(), today)
-                .expect("failed to request data");
-        }
-    }
+    let mut trade_dates = portfolio
+        .positions
+        .iter()
+        .flat_map(|position| position.trades.first())
+        .map(|trade| trade.date)
+        .collect::<Vec<_>>();
+    trade_dates.sort();
+    let first_trade = trade_dates
+        .first()
+        .expect("unable to detect first trade date in the portfolio");
+    let portfolio_incators = PortfolioIndicators::from_portfolio(
+        &portfolio,
+        first_trade.date(),
+        today,
+        Step::Day,
+        &mut provider,
+    )
+    .expect("failed to price portfolio");
 
     //
     // compute pnl & valuations
-    while date_iter < today {
+    /*while date_iter < today {
         let date = date_iter.and_hms_opt(23, 59, 00).unwrap();
         date_iter = date_iter.succ_opt().unwrap();
 
@@ -106,5 +116,5 @@ fn main() {
                 position_indicator.quantity,
             );
         }
-    }
+    }*/
 }

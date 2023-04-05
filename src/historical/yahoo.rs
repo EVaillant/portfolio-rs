@@ -1,4 +1,4 @@
-use super::{DataFrame, Provider};
+use super::{DataFrame, Requester};
 use crate::alias::Date;
 use crate::error::{Error, ErrorKind};
 use crate::marketdata::Instrument;
@@ -14,15 +14,27 @@ use std::io::Read;
 pub struct YahooDataFrame {
     #[serde(rename = "Date")]
     #[serde(deserialize_with = "deserialize_date")]
-    pub date: Date,
+    date: Date,
     #[serde(rename = "Open")]
-    pub open: f64,
+    open: f64,
     #[serde(rename = "High")]
-    pub high: f64,
+    high: f64,
     #[serde(rename = "Low")]
-    pub low: f64,
+    low: f64,
     #[serde(rename = "Close")]
-    pub close: f64,
+    close: f64,
+}
+
+impl From<YahooDataFrame> for DataFrame {
+    fn from(value: YahooDataFrame) -> Self {
+        DataFrame {
+            date: value.date,
+            open: value.open,
+            high: value.high,
+            low: value.low,
+            close: value.close,
+        }
+    }
 }
 
 fn deserialize_date<'de, D>(deserializer: D) -> Result<Date, D::Error>
@@ -35,42 +47,11 @@ where
     Ok(result)
 }
 
-impl DataFrame for YahooDataFrame {
-    fn new(date: Date, open: f64, close: f64, low: f64, high: f64) -> Self {
-        Self {
-            date,
-            open,
-            high,
-            low,
-            close,
-        }
-    }
-    fn date(&self) -> &Date {
-        &self.date
-    }
-
-    fn open(&self) -> f64 {
-        self.open
-    }
-
-    fn close(&self) -> f64 {
-        self.close
-    }
-
-    fn low(&self) -> f64 {
-        self.low
-    }
-
-    fn high(&self) -> f64 {
-        self.high
-    }
-}
-
-pub struct YahooProvider {
+pub struct YahooRequester {
     reqwest_client: Client,
 }
 
-impl YahooProvider {
+impl YahooRequester {
     pub fn new() -> Result<Self, Error> {
         let mut headers = HeaderMap::new();
         headers.insert("Connection", HeaderValue::from_static("keep-alive"));
@@ -129,7 +110,7 @@ impl YahooProvider {
         crumb: &str,
         begin: Date,
         end: Date,
-    ) -> Result<Vec<YahooDataFrame>, Error> {
+    ) -> Result<Vec<DataFrame>, Error> {
         let output = self.reqwest_client.get(format!("https://query1.finance.yahoo.com/v7/finance/download/{}?period1={}&period2={}&interval=1d&events=history&crumb={}", ticker, begin.and_hms_opt(0, 0, 0).unwrap().timestamp(), end.and_hms_opt(0, 0, 0).unwrap().timestamp(), crumb))
         .send()
         .map_err(|error| {
@@ -141,7 +122,7 @@ impl YahooProvider {
                 "failed to read body from request historic ticker:{ticker} error:{error}"))
         })?;
         let mut csv_reader = csv::Reader::from_reader(output.as_bytes());
-        let mut data_frames = Vec::new();
+        let mut data_frames: Vec<DataFrame> = Vec::new();
         for result in csv_reader.deserialize() {
             let record: YahooDataFrame = result.map_err(|error| {
                 Error::new(
@@ -149,21 +130,19 @@ impl YahooProvider {
                     format!("invalid csv format ticker:{ticker} error:{error} csv:{output}"),
                 )
             })?;
-            data_frames.push(record);
+            data_frames.push(record.into());
         }
         Ok(data_frames)
     }
 }
 
-impl Provider for YahooProvider {
-    type DataFrame = YahooDataFrame;
-
+impl Requester for YahooRequester {
     fn request(
         &self,
         instrument: &Instrument,
         begin: Date,
         end: Date,
-    ) -> Result<Vec<Self::DataFrame>, Error> {
+    ) -> Result<(Date, Date, Vec<DataFrame>), Error> {
         info!(
             "try to request historic data for {} between {} to {}",
             instrument.name,
@@ -179,8 +158,17 @@ impl Provider for YahooProvider {
         debug!("try to request crumb for {}", instrument.name);
         let crumb = self.request_crumb(ticker_yahoo)?;
         debug!("request crumb {} for {} done", crumb, instrument.name);
-        let result = self.request_data(ticker_yahoo, &crumb, begin, end);
+        let result = self.request_data(ticker_yahoo, &crumb, begin, end)?;
+        let result_begin;
+        let result_end;
+        if result.is_empty() {
+            result_begin = Default::default();
+            result_end = Default::default();
+        } else {
+            result_begin = *result.first().unwrap().date();
+            result_end = *result.last().unwrap().date();
+        }
         info!("request historic data for {} done", instrument.name);
-        result
+        Ok((result_begin, result_end, result))
     }
 }

@@ -1,6 +1,6 @@
 use crate::alias::Date;
 use crate::error::{Error, ErrorKind};
-use crate::historical::DataFrame;
+use crate::historical::{DataFrame, Persistance};
 use crate::marketdata::Instrument;
 use rusqlite::{Connection, Result};
 
@@ -49,11 +49,8 @@ impl SQLitePersistance {
     }
 }
 
-impl crate::historical::Persistance for SQLitePersistance {
-    fn save<P>(&self, instrument: &Instrument, datas: &[P]) -> Result<(), Error>
-    where
-        P: DataFrame,
-    {
+impl Persistance for SQLitePersistance {
+    fn save(&self, instrument: &Instrument, datas: &[DataFrame]) -> Result<(), Error> {
         self.connection.execute_batch("BEGIN TRANSACTION;")?;
         let mut stmt = self.connection.prepare(
           "INSERT OR REPLACE INTO Historical (instrument, date, open, close, high, low) VALUES(?, ?, ?, ?, ?, ?)",
@@ -62,7 +59,7 @@ impl crate::historical::Persistance for SQLitePersistance {
         for data in datas.iter() {
             stmt.execute((
                 &instrument.name,
-                data.date().format("%Y-%m-%d").to_string(),
+                data.date().to_string(),
                 data.open(),
                 data.close(),
                 data.high(),
@@ -73,17 +70,13 @@ impl crate::historical::Persistance for SQLitePersistance {
         self.connection.execute_batch("COMMIT TRANSACTION;")?;
         Ok(())
     }
-
-    fn load<P>(&self, instrument: &Instrument) -> Result<Option<(Date, Date, Vec<P>)>, Error>
-    where
-        P: DataFrame,
-    {
+    fn load(&self, instrument: &Instrument) -> Result<Option<(Date, Date, Vec<DataFrame>)>, Error> {
         let mut stmt = self
             .connection
             .prepare("SELECT * FROM Historical WHERE instrument = ?")?;
 
         let rows = stmt.query_map((&instrument.name,), |row| {
-            Ok(P::new(
+            Ok(DataFrame::new(
                 row.get::<usize, SQLiteDate>(1)?.0,
                 row.get(2)?,
                 row.get(3)?,

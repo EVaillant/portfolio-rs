@@ -1,134 +1,194 @@
-use crate::alias::DateTime;
+use crate::alias::Date;
+use crate::error::{Error, ErrorKind};
+use crate::historical::{DataFrame, Provider};
 use crate::marketdata::Instrument;
-use crate::portfolio::{Portfolio, Position, Way};
-
-use std::collections::HashMap;
+use crate::portfolio::{Portfolio, Position};
 use std::rc::Rc;
 
-#[derive(Debug)]
+use log::info;
+
+mod iterator;
+use iterator::DateByStepIterator;
+
+#[allow(dead_code)]
+pub enum Step {
+    Year,
+    Month,
+    Day,
+    Week,
+}
+
 pub struct PositionIndicator {
-    pub date: DateTime,
-    pub unit_price: f64,
-    pub quantity: u32,
-    pub tax: f64,
-    pub dividends: f64,
+    spot: DataFrame,
+    instrument: Rc<Instrument>,
 }
 
 impl PositionIndicator {
-    pub fn from_position(position: &Position, date: DateTime) -> Option<Self> {
-        let mut unit_price = 0.0;
-        let mut quantity = 0;
-        let mut tax = 0.0;
+    pub fn from_position<P>(
+        position: &Position,
+        _begin_period: Date,
+        end_period: Date,
+        spot_provider: &mut P,
+    ) -> Result<PositionIndicator, Error>
+    where
+        P: Provider,
+    {
+        let spot = spot_provider
+            .latest(&position.instrument, end_period)
+            .ok_or_else(|| {
+                Error::new(
+                    ErrorKind::Historical,
+                    format!(
+                        "not spot for '{}' latest {}",
+                        position.instrument.name,
+                        end_period.format("%Y-%m-%d")
+                    ),
+                )
+            })?;
 
-        for trade in position.trades.iter() {
-            if trade.date > date {
-                break;
-            }
-            match trade.way {
-                Way::Sell => {
-                    quantity -= trade.quantity;
-                }
-                Way::Buy => {
-                    unit_price = (quantity as f64 * unit_price
-                        + trade.price * trade.quantity as f64
-                        + trade.tax)
-                        / (quantity as f64 + trade.quantity as f64);
-                    quantity += trade.quantity;
-                }
-            };
-            tax += trade.tax;
-        }
-
-        let dividends = position
-            .instrument
-            .dividends
-            .as_ref()
-            .map_or(0.0, |values| {
-                values
-                    .iter()
-                    .map(|item| {
-                        if item.date > date {
-                            0.0
-                        } else {
-                            let mut quantity = 0;
-                            for trade in position.trades.iter() {
-                                if trade.date > item.date {
-                                    break;
-                                }
-                                match trade.way {
-                                    Way::Sell => {
-                                        quantity -= trade.quantity;
-                                    }
-                                    Way::Buy => {
-                                        quantity += trade.quantity;
-                                    }
-                                };
-                            }
-                            item.value * quantity as f64
-                        }
-                    })
-                    .sum()
-            });
-
-        if quantity == 0 {
-            None
-        } else {
-            Some(Self {
-                date,
-                unit_price,
-                quantity,
-                tax,
-                dividends,
-            })
-        }
-    }
-
-    pub fn pnl(&self, price: f64) -> f64 {
-        self.quantity as f64 * (price - self.unit_price)
-    }
-
-    pub fn valuations(&self) -> f64 {
-        self.quantity as f64 * self.unit_price
+        Ok(PositionIndicator {
+            spot: *spot,
+            instrument: position.instrument.clone(),
+        })
     }
 }
 
-#[derive(Debug)]
 pub struct PortfolioIndicator {
-    pub date: DateTime,
-    pub positions: HashMap<Rc<Instrument>, PositionIndicator>,
+    date: Date,
+    positions: Vec<PositionIndicator>,
 }
 
 impl PortfolioIndicator {
-    pub fn from_portfolio(portfolio: &Portfolio, date: DateTime) -> Self {
-        let mut positions = HashMap::new();
+    pub fn from_portfolio<P>(
+        portfolio: &Portfolio,
+        begin_period: Date,
+        end_period: Date,
+        spot_provider: &mut P,
+    ) -> Result<PortfolioIndicator, Error>
+    where
+        P: Provider,
+    {
+        let positions = PortfolioIndicator::make_positions_(
+            portfolio,
+            begin_period,
+            end_period,
+            spot_provider,
+        )?;
+
+        Ok(PortfolioIndicator {
+            date: end_period,
+            positions,
+        })
+    }
+
+    fn make_positions_<P>(
+        portfolio: &Portfolio,
+        begin_period: Date,
+        end_period: Date,
+        spot_provider: &mut P,
+    ) -> Result<Vec<PositionIndicator>, Error>
+    where
+        P: Provider,
+    {
+        let result = portfolio
+            .positions
+            .iter()
+            .fold((Vec::new(), None), |accu, value| {
+                if accu.1.is_some() {
+                    accu
+                } else {
+                    let mut data = accu.0;
+                    match PositionIndicator::from_position(
+                        value,
+                        begin_period,
+                        end_period,
+                        spot_provider,
+                    ) {
+                        Ok(value) => {
+                            data.push(value);
+                            (data, None)
+                        }
+                        Err(error) => (data, Some(error)),
+                    }
+                }
+            });
+        if let Some(error) = result.1 {
+            Err(error)
+        } else {
+            Ok(result.0)
+        }
+    }
+}
+
+pub struct PortfolioIndicators {
+    portfolios: Vec<PortfolioIndicator>,
+}
+
+impl PortfolioIndicators {
+    pub fn from_portfolio<P>(
+        portfolio: &Portfolio,
+        begin: Date,
+        end: Date,
+        step: Step,
+        spot_provider: &mut P,
+    ) -> Result<PortfolioIndicators, Error>
+    where
+        P: Provider,
+    {
+        info!("request all market data historical");
         for position in portfolio.positions.iter() {
-            if let Some(indicator) = PositionIndicator::from_position(position, date) {
-                positions.insert(position.instrument.clone(), indicator);
+            if let Some(trade) = position.trades.first() {
+                let instrument_begin = trade.date.date();
+                if instrument_begin < end {
+                    spot_provider.fetch(&position.instrument, instrument_begin, end)?;
+                }
             }
         }
-        Self { date, positions }
+        info!("request all market data historical done");
+
+        let portfolios =
+            PortfolioIndicators::make_portfolios_(portfolio, begin, end, step, spot_provider)?;
+
+        Ok(PortfolioIndicators { portfolios })
     }
 
-    pub fn valuations(&self) -> f64 {
-        self.positions
-            .values()
-            .map(|position| position.valuations())
-            .sum()
-    }
-
-    pub fn pnl<F>(&self, spotter: F) -> Option<f64>
+    fn make_portfolios_<P>(
+        portfolio: &Portfolio,
+        begin: Date,
+        end: Date,
+        step: Step,
+        spot_provider: &mut P,
+    ) -> Result<Vec<PortfolioIndicator>, Error>
     where
-        F: Fn(&Instrument, DateTime) -> Option<f64>,
+        P: Provider,
     {
-        self.positions
-            .iter()
-            .map(|(instrument, position_indicator)| {
-                spotter(instrument, self.date).map(|price| position_indicator.pnl(price))
-            })
-            .fold(Some(0.0), |accu, value| match (accu, value) {
-                (None, _) => None,
-                (_, None) => None,
-                (Some(l), Some(r)) => Some(l + r),
-            })
+        let result = DateByStepIterator::new(begin, end, step).fold(
+            (begin, Vec::new(), None),
+            |accu, end_period| {
+                if accu.2.is_some() {
+                    accu
+                } else {
+                    let mut data = accu.1;
+                    let begin_period = accu.0;
+                    match PortfolioIndicator::from_portfolio(
+                        portfolio,
+                        begin_period,
+                        end_period,
+                        spot_provider,
+                    ) {
+                        Ok(value) => {
+                            data.push(value);
+                            (end_period, data, None)
+                        }
+                        Err(error) => (end_period, data, Some(error)),
+                    }
+                }
+            },
+        );
+        if let Some(error) = result.2 {
+            Err(error)
+        } else {
+            Ok(result.1)
+        }
     }
 }
