@@ -77,7 +77,7 @@ fn main() {
     let first_trade = trade_dates
         .first()
         .expect("unable to detect first trade date in the portfolio");
-    let portfolio_incators = PortfolioIndicators::from_portfolio(
+    PortfolioIndicators::from_portfolio(
         &portfolio,
         first_trade.date(),
         today,
