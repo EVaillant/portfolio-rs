@@ -14,53 +14,102 @@ env:
 
 jobs:
   build:
-    name: Build and Test on rust ${{ matrix.rust }} on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { rust: stable,           os: ubuntu-22.04 }
-          - { rust: beta,             os: ubuntu-22.04 }
-          - { rust: nightly,          os: ubuntu-22.04 }
+    name: Build
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: hecrj/setup-rust-action@v1
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
         with:
-          rust-version: ${{ matrix.rust }}
+          profile: minimal
+          toolchain: stable
+          override: true
+        
       - name: Install dependencies
         run: |
           sudo apt-get update -y -qq
           sudo apt-get install libsqlite3-dev
-      - name: Build      
+
+      - name: Run cargo check
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+        
+      - name: Install dependencies
         run: |
-          cargo build --verbose
-      - name: Test
-        run: |
-          cargo test --verbose
-      - name: Build Example
-        run: |
-          cargo build --examples --verbose
+          sudo apt-get update -y -qq
+          sudo apt-get install libsqlite3-dev
+
+      - name: Run cargo test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test --verbose
 
   clippy:
-    name: Lint with clippy
-    runs-on: ubuntu-20.04
+    name: Verify code formatting
+    runs-on: ubuntu-latest
     env:
       RUSTFLAGS: -Dwarnings
     steps:
-      - uses: actions/checkout@v2
-      - uses: hecrj/setup-rust-action@v1
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
         with:
-          components: clippy
-      - run: |
-          cargo clippy --workspace --all-targets --verbose -- -A dead-code
+          profile: minimal
+          toolchain: stable
+          override: true
+        
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -y -qq
+          sudo apt-get install libsqlite3-dev
+
+      - name: Run cargo clippy
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy --workspace --all-targets --verbose -- -A dead-code
 
   rustfmt:
     name: Verify code formatting
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: -Dwarnings
     steps:
-      - uses: actions/checkout@v2
-      - uses: hecrj/setup-rust-action@v1
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
         with:
-          components: rustfmt
-      - run: cargo fmt --all -- --check
+          profile: minimal
+          toolchain: stable
+          override: true
+        
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -y -qq
+          sudo apt-get install libsqlite3-dev
+
+      - name: Run cargo clippy
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt --all -- --check
+
