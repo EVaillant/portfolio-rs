@@ -21,11 +21,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
+        uses: dtolnay/rust-toolchain@stable
         
       - name: Install dependencies
         run: |
@@ -33,9 +29,7 @@ jobs:
           sudo apt-get install libsqlite3-dev
 
       - name: Run cargo check
-        uses: actions-rs/cargo@v1
-        with:
-          command: check
+        run: cargo check
 
   test:
     name: Test Suite
@@ -45,11 +39,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
+        uses: dtolnay/rust-toolchain@stable
         
       - name: Install dependencies
         run: |
@@ -57,10 +47,7 @@ jobs:
           sudo apt-get install libsqlite3-dev
 
       - name: Run cargo test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --verbose
+        run: cargo test --verbose
 
   clippy:
     name: Lint with clippy
@@ -72,11 +59,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
+        uses: dtolnay/rust-toolchain@stable
         
       - name: Install dependencies
         run: |
@@ -84,10 +67,7 @@ jobs:
           sudo apt-get install libsqlite3-dev
 
       - name: Run cargo clippy
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --workspace --all-targets --verbose -- -A dead-code
+        run: cargo clippy --workspace --all-targets --verbose -- -A dead-code
 
   rustfmt:
     name: Verify code formatting
@@ -99,11 +79,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
+        uses: dtolnay/rust-toolchain@stable
         
       - name: Install dependencies
         run: |
@@ -111,8 +87,4 @@ jobs:
           sudo apt-get install libsqlite3-dev
 
       - name: Run cargo clippy
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
-
+        run: cargo fmt --all -- --check
