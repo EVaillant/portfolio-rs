@@ -59,7 +59,8 @@ jobs:
       - name: Run cargo test
         uses: actions-rs/cargo@v1
         with:
-          command: test --verbose
+          command: test
+          args: --verbose
 
   clippy:
     name: Verify code formatting
@@ -85,7 +86,8 @@ jobs:
       - name: Run cargo clippy
         uses: actions-rs/cargo@v1
         with:
-          command: clippy --workspace --all-targets --verbose -- -A dead-code
+          command: clippy
+          args: --workspace --all-targets --verbose -- -A dead-code
 
   rustfmt:
     name: Verify code formatting
@@ -111,5 +113,6 @@ jobs:
       - name: Run cargo clippy
         uses: actions-rs/cargo@v1
         with:
-          command: fmt --all -- --check
+          command: fmt
+          args: --all -- --check
 
