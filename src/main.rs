@@ -121,24 +121,14 @@ fn dump_portfolio_indicators(
     indicators: &PortfolioIndicators,
     step: Step,
 ) -> Result<(), Error> {
-    let filename = String::from(output_dir)
-        + "/indicators_"
-        + step.to_string()
-        + "_"
-        + &portfolio.name
-        + ".csv";
+    let filename = format!("{}/indicators_{}_{}.csv", output_dir, step, portfolio.name);
     indicators.dump_indicators_in_csv(&filename)?;
 
     for instrument_name in portfolio.get_instrument_name_list().iter() {
-        let filename = String::from(output_dir)
-            + "/indicators_"
-            + step.to_string()
-            + "_"
-            + &portfolio.name
-            + "_"
-            + instrument_name
-            + ".csv";
-
+        let filename = format!(
+            "{}/indicators_{}_{}_{}.csv",
+            output_dir, step, portfolio.name, instrument_name
+        );
         indicators.dump_instrument_indicators_in_csv(instrument_name, &filename)?;
     }
 

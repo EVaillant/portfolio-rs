@@ -20,14 +20,15 @@ pub enum Step {
     Week,
 }
 
-impl Step {
-    pub fn to_string(&self) -> &str {
-        match self {
+impl std::fmt::Display for Step {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let value = match self {
             Step::Day => "daily",
             Step::Month => "monthly",
             Step::Week => "weekly",
             Step::Year => "yearly",
-        }
+        };
+        write!(f, "{}", value)
     }
 }
 
@@ -245,7 +246,7 @@ impl PortfolioIndicators {
             portfolio.name,
             begin.format("%Y-%m-%d"),
             end.format("%Y-%m-%d"),
-            step.to_string(),
+            step,
         );
 
         for position in portfolio.positions.iter() {
