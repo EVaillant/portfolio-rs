@@ -1,4 +1,4 @@
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use env_logger::Builder;
 use log::info;
 use log::LevelFilter;
@@ -12,13 +12,28 @@ mod portfolio;
 mod pricer;
 mod referential;
 
-use historical::{HistoricalData, YahooRequester};
+use historical::{HistoricalData, NullRequester, Requester, YahooRequester};
 use persistence::SQLitePersistance;
 use portfolio::Portfolio;
 use pricer::{PortfolioIndicators, Step};
 use referential::Referential;
 
 use crate::error::Error;
+
+#[derive(ValueEnum, Copy, Clone, Debug, PartialEq, Eq)]
+enum SpotSource {
+    Null,
+    Yahoo,
+}
+
+impl std::fmt::Display for SpotSource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.to_possible_value()
+            .expect("no values are skipped")
+            .get_name()
+            .fmt(f)
+    }
+}
 
 /// Simple program to greet a person
 #[derive(Parser, Debug)]
@@ -39,6 +54,18 @@ struct Args {
     /// output dir
     #[clap(short, long, value_parser)]
     output_dir: String,
+
+    /// spot source
+    #[clap(default_value_t = SpotSource::Yahoo, short, long, value_parser)]
+    spot_source: SpotSource,
+}
+
+fn make_requester(source: SpotSource) -> Result<Box<dyn Requester>, Error> {
+    let value: Box<dyn Requester> = match source {
+        SpotSource::Null => Box::new(NullRequester),
+        SpotSource::Yahoo => Box::new(YahooRequester::new()?),
+    };
+    Ok(value)
 }
 
 fn main() -> Result<(), Error> {
@@ -65,7 +92,7 @@ fn main() -> Result<(), Error> {
 
     //
     // historical data
-    let requester = YahooRequester::new()?;
+    let requester = make_requester(args.spot_source)?;
     let mut provider = HistoricalData::new(requester, &persistence);
 
     //
@@ -94,21 +121,18 @@ fn dump_portfolio_indicators(
     indicators: &PortfolioIndicators,
     step: Step,
 ) -> Result<(), Error> {
-    let step_filename = match step {
-        Step::Day => "daily",
-        Step::Month => "monthly",
-        Step::Week => "weekly",
-        Step::Year => "yearly",
-    };
-
-    let filename =
-        String::from(output_dir) + "/indicators_" + step_filename + "_" + &portfolio.name + ".csv";
+    let filename = String::from(output_dir)
+        + "/indicators_"
+        + step.to_string()
+        + "_"
+        + &portfolio.name
+        + ".csv";
     indicators.dump_indicators_in_csv(&filename)?;
 
     for instrument_name in portfolio.get_instrument_name_list().iter() {
         let filename = String::from(output_dir)
             + "/indicators_"
-            + step_filename
+            + step.to_string()
             + "_"
             + &portfolio.name
             + "_"

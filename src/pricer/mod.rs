@@ -20,6 +20,17 @@ pub enum Step {
     Week,
 }
 
+impl Step {
+    pub fn to_string(&self) -> &str {
+        match self {
+            Step::Day => "daily",
+            Step::Month => "monthly",
+            Step::Week => "weekly",
+            Step::Year => "yearly",
+        }
+    }
+}
+
 pub struct PositionIndicator {
     pub spot: DataFrame,
     pub instrument: Rc<Instrument>,
@@ -229,7 +240,14 @@ impl PortfolioIndicators {
     where
         P: Provider,
     {
-        info!("request all market data historical");
+        info!(
+            "request all market data historical for {} from {} to {} for {} pricing",
+            portfolio.name,
+            begin.format("%Y-%m-%d"),
+            end.format("%Y-%m-%d"),
+            step.to_string(),
+        );
+
         for position in portfolio.positions.iter() {
             if let Some(trade) = position.trades.first() {
                 let instrument_begin = trade.date.date();
@@ -240,8 +258,10 @@ impl PortfolioIndicators {
         }
         info!("request all market data historical done");
 
+        info!("start to price portfolios");
         let portfolios =
             PortfolioIndicators::make_portfolios_(portfolio, begin, end, step, spot_provider)?;
+        info!("price portfolios is finished");
 
         Ok(PortfolioIndicators { portfolios })
     }

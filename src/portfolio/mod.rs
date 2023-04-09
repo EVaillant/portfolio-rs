@@ -44,6 +44,6 @@ impl Portfolio {
         self.positions
             .iter()
             .map(|position| &position.instrument.name)
-            .collect::<HashSet<_>>()
+            .collect()
     }
 }

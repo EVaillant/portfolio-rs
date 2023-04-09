@@ -70,6 +70,18 @@ pub trait Requester {
     ) -> Result<(Date, Date, Vec<DataFrame>), Error>;
 }
 
+pub struct NullRequester;
+impl Requester for NullRequester {
+    fn request(
+        &self,
+        _instrument: &Instrument,
+        _begin: Date,
+        _end: Date,
+    ) -> Result<(Date, Date, Vec<DataFrame>), Error> {
+        Ok((Default::default(), Default::default(), Default::default()))
+    }
+}
+
 pub trait Persistance {
     fn save(&self, instrument: &Instrument, datas: &[DataFrame]) -> Result<(), Error>;
     fn load(&self, instrument: &Instrument) -> Result<Option<(Date, Date, Vec<DataFrame>)>, Error>;
@@ -131,22 +143,20 @@ impl CacheInstrument {
     }
 }
 
-pub struct HistoricalData<'a, R, P>
+pub struct HistoricalData<'a, P>
 where
-    R: Requester,
     P: Persistance,
 {
-    requester: R,
+    requester: Box<dyn Requester>,
     persistence: &'a P,
     cache: HashMap<String, CacheInstrument>,
 }
 
-impl<'a, R, P> HistoricalData<'a, R, P>
+impl<'a, P> HistoricalData<'a, P>
 where
-    R: Requester,
     P: Persistance,
 {
-    pub fn new(requester: R, persistence: &'a P) -> Self {
+    pub fn new(requester: Box<dyn Requester>, persistence: &'a P) -> Self {
         Self {
             requester,
             persistence,
@@ -159,9 +169,8 @@ where
     }
 }
 
-impl<'a, R, P> Provider for HistoricalData<'a, R, P>
+impl<'a, P> Provider for HistoricalData<'a, P>
 where
-    R: Requester,
     P: Persistance,
 {
     fn fetch(&mut self, instrument: &Instrument, begin: Date, end: Date) -> Result<(), Error> {
@@ -199,6 +208,7 @@ where
                     request_end = cache_end;
                 }
                 None => {
+                    info!("historic data for {} up to date.", instrument.name);
                     return Ok(());
                 }
             };
@@ -227,9 +237,9 @@ where
             self.persistence.save(instrument, &result_data)?;
 
             if let Some(data_cache) = cache_item {
-                data_cache.insert(result_begin, result_end, result_data);
+                data_cache.insert(request_begin, request_end, result_data);
             } else {
-                let item = CacheInstrument::new(result_begin, result_end, result_data);
+                let item = CacheInstrument::new(request_begin, request_end, result_data);
                 self.cache.insert(key.clone(), item);
             }
         } else {
