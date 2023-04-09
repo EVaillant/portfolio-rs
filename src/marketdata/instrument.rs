@@ -14,7 +14,8 @@ pub struct Instrument {
 
 #[derive(Debug)]
 pub struct Dividend {
-    pub date: DateTime,
+    pub record_date: DateTime,
+    pub payment_date: DateTime,
     pub value: f64,
 }
 

@@ -371,9 +371,14 @@ impl Deserialize for Dividend {
     where
         D: Deserializer,
     {
-        let date = deserializer.read("date")?;
+        let record_date = deserializer.read("record_date")?;
+        let payment_date = deserializer.read("payment_date")?;
         let value = deserializer.read("value")?;
-        Ok(Dividend { date, value })
+        Ok(Dividend {
+            record_date,
+            payment_date,
+            value,
+        })
     }
 }
 

@@ -40,12 +40,6 @@ impl serialize::Resolver for Referential {
     }
 }
 
-impl From<std::io::Error> for Error {
-    fn from(error: std::io::Error) -> Self {
-        Error::new(ErrorKind::Referential, error.to_string())
-    }
-}
-
 pub struct Referential {
     marketdata_dir: String,
     cache: Cache,

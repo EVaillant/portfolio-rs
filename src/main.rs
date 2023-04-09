@@ -14,8 +14,11 @@ mod referential;
 
 use historical::{HistoricalData, YahooRequester};
 use persistence::SQLitePersistance;
+use portfolio::Portfolio;
 use pricer::{PortfolioIndicators, Step};
 use referential::Referential;
+
+use crate::error::Error;
 
 /// Simple program to greet a person
 #[derive(Parser, Debug)]
@@ -32,9 +35,13 @@ struct Args {
     /// db cache file
     #[clap(short, long, value_parser)]
     cache_file: String,
+
+    /// output dir
+    #[clap(short, long, value_parser)]
+    output_dir: String,
 }
 
-fn main() {
+fn main() -> Result<(), Error> {
     //
     // cli arg
     let args = Args::parse();
@@ -49,72 +56,67 @@ fn main() {
     //
     // Load portfolio
     let mut referential = Referential::new(args.marketdata_dir);
-    let portfolio = referential
-        .load_portfolio(&args.portfolio)
-        .expect("unable to load portfolio");
+    let portfolio = referential.load_portfolio(&args.portfolio)?;
     info!("loading portfolio {} done", portfolio.name);
 
     //
     // persistence
-    let persistence =
-        SQLitePersistance::new(&args.cache_file).expect("failed to create/load persistence file");
+    let persistence = SQLitePersistance::new(&args.cache_file)?;
 
     //
     // historical data
-    let requester = YahooRequester::new().expect("failed to create yahoo requester");
+    let requester = YahooRequester::new()?;
     let mut provider = HistoricalData::new(requester, &persistence);
 
     //
     // compute main portfolio
-    let today = chrono::Utc::now().date_naive();
-    let mut trade_dates = portfolio
-        .positions
-        .iter()
-        .flat_map(|position| position.trades.first())
-        .map(|trade| trade.date)
-        .collect::<Vec<_>>();
-    trade_dates.sort();
-    let first_trade = trade_dates
-        .first()
-        .expect("unable to detect first trade date in the portfolio");
-    PortfolioIndicators::from_portfolio(
-        &portfolio,
-        first_trade.date(),
-        today,
-        Step::Day,
-        &mut provider,
-    )
-    .expect("failed to price portfolio");
+    let compute_begin = portfolio.get_trade_date()?;
+    let compute_end = chrono::Utc::now().date_naive();
+    for step in vec![Step::Day, Step::Week, Step::Month, Step::Year].iter() {
+        let portfolio_indicators = PortfolioIndicators::from_portfolio(
+            &portfolio,
+            compute_begin,
+            compute_end,
+            *step,
+            &mut provider,
+        )?;
 
-    //
-    // compute pnl & valuations
-    /*while date_iter < today {
-        let date = date_iter.and_hms_opt(23, 59, 00).unwrap();
-        date_iter = date_iter.succ_opt().unwrap();
+        //
+        // dump output
+        dump_portfolio_indicators(&args.output_dir, &portfolio, &portfolio_indicators, *step)?;
+    }
+    Ok(())
+}
 
-        let portfolio_indicator = PortfolioIndicator::from_portfolio(&portfolio, date);
-        let valuations = portfolio_indicator.valuations();
-        let pnl = match portfolio_indicator
-            .pnl(|instrument, date| histo.get(instrument, date.date()).map(|value| value.close))
-        {
-            Some(value) => value,
-            None => continue,
-        };
+fn dump_portfolio_indicators(
+    output_dir: &str,
+    portfolio: &Portfolio,
+    indicators: &PortfolioIndicators,
+    step: Step,
+) -> Result<(), Error> {
+    let step_filename = match step {
+        Step::Day => "daily",
+        Step::Month => "monthly",
+        Step::Week => "weekly",
+        Step::Year => "yearly",
+    };
 
-        println!("{};all;{};{};;", date.format("%Y-%m-%d"), valuations, pnl);
-        for (instrument, position_indicator) in portfolio_indicator.positions.iter() {
-            let close = histo.get(instrument, date.date()).unwrap().close;
-            let valuations = position_indicator.valuations();
-            let pnl = position_indicator.pnl(close);
-            println!(
-                "{};{};{};{};{};{}",
-                date.format("%Y-%m-%d"),
-                instrument.name,
-                valuations,
-                pnl,
-                position_indicator.unit_price,
-                position_indicator.quantity,
-            );
-        }
-    }*/
+    let filename =
+        String::from(output_dir) + "/indicators_" + step_filename + "_" + &portfolio.name + ".csv";
+    indicators.dump_indicators_in_csv(&filename)?;
+
+    for instrument_name in portfolio.get_instrument_name_list().iter() {
+        let filename = String::from(output_dir)
+            + "/indicators_"
+            + step_filename
+            + "_"
+            + &portfolio.name
+            + "_"
+            + instrument_name
+            + ".csv";
+
+        indicators.dump_instrument_indicators_in_csv(instrument_name, &filename)?;
+    }
+
+    Ok(())
 }
