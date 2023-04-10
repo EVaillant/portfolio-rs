@@ -61,62 +61,70 @@ impl PositionIndicator {
     {
         if let Some(spot) = spot_provider.latest(&position.instrument, end_period) {
             if spot.date() == &end_period || spot.date() > &begin_period {
-                let (quantity, quantity_buy, quantity_sell, unit_price, tax) =
-                    PositionIndicator::compute_quantity_(position, end_period);
-
-                let valuation = unit_price * quantity;
-                let dividends = position
-                    .instrument
-                    .dividends
-                    .as_ref()
-                    .map(|dividends| {
-                        dividends
-                            .iter()
-                            .map(|dividend| {
-                                let quantity = PositionIndicator::compute_quantity_(
-                                    position,
-                                    dividend.record_date.date(),
-                                )
-                                .0;
-                                dividend.value * quantity
-                            })
-                            .sum()
-                    })
-                    .unwrap_or_else(|| 0.0);
-
-                let latent = (spot.close() - unit_price) * quantity;
-                let latent_in_percent = latent / valuation;
-                let earning = position
-                    .trades
-                    .iter()
-                    .filter(|trade| trade.way == Way::Sell)
-                    .fold(dividends, |dividends, trade| {
-                        dividends + trade.price * trade.quantity + trade.tax
-                    });
-                let pnl = earning + latent;
-                let pnl_in_percent = pnl / valuation;
-
-                Some(PositionIndicator {
-                    spot: *spot,
-                    instrument: position.instrument.clone(),
-                    quantity,
-                    quantity_buy,
-                    quantity_sell,
-                    unit_price,
-                    valuation,
-                    dividends,
-                    tax,
-                    latent,
-                    latent_in_percent,
-                    earning,
-                    pnl,
-                    pnl_in_percent,
-                })
+                Some(PositionIndicator::from_position_(
+                    position,
+                    begin_period,
+                    spot,
+                ))
             } else {
                 None
             }
         } else {
             None
+        }
+    }
+
+    fn from_position_(position: &Position, date: Date, spot: &DataFrame) -> PositionIndicator {
+        let (quantity, quantity_buy, quantity_sell, unit_price, tax) =
+            PositionIndicator::compute_quantity_(position, date);
+
+        let valuation = unit_price * quantity;
+        let dividends = position
+            .instrument
+            .dividends
+            .as_ref()
+            .map(|dividends| {
+                dividends
+                    .iter()
+                    .map(|dividend| {
+                        let quantity = PositionIndicator::compute_quantity_(
+                            position,
+                            dividend.record_date.date(),
+                        )
+                        .0;
+                        dividend.value * quantity
+                    })
+                    .sum()
+            })
+            .unwrap_or_else(|| 0.0);
+
+        let latent = (spot.close() - unit_price) * quantity;
+        let latent_in_percent = latent / valuation;
+        let earning = position
+            .trades
+            .iter()
+            .filter(|trade| trade.way == Way::Sell)
+            .fold(dividends, |dividends, trade| {
+                dividends + trade.price * trade.quantity + trade.tax
+            });
+        let pnl = earning + latent;
+        let pnl_in_percent = pnl / valuation;
+
+        PositionIndicator {
+            spot: *spot,
+            instrument: position.instrument.clone(),
+            quantity,
+            quantity_buy,
+            quantity_sell,
+            unit_price,
+            valuation,
+            dividends,
+            tax,
+            latent,
+            latent_in_percent,
+            earning,
+            pnl,
+            pnl_in_percent,
         }
     }
 
@@ -168,7 +176,7 @@ impl PortfolioIndicator {
         begin_period: Date,
         end_period: Date,
         spot_provider: &mut P,
-    ) -> Result<PortfolioIndicator, Error>
+    ) -> PortfolioIndicator
     where
         P: Provider,
     {
@@ -191,7 +199,7 @@ impl PortfolioIndicator {
         let latent_in_percent = latent / valuation;
         let pnl_in_percent = pnl / valuation;
 
-        Ok(PortfolioIndicator {
+        PortfolioIndicator {
             date: end_period,
             positions,
             valuation,
@@ -202,7 +210,7 @@ impl PortfolioIndicator {
             earning,
             pnl,
             pnl_in_percent,
-        })
+        }
     }
 
     fn make_positions_<P>(
@@ -261,7 +269,7 @@ impl PortfolioIndicators {
 
         info!("start to price portfolios");
         let portfolios =
-            PortfolioIndicators::make_portfolios_(portfolio, begin, end, step, spot_provider)?;
+            PortfolioIndicators::make_portfolios_(portfolio, begin, end, step, spot_provider);
         info!("price portfolios is finished");
 
         Ok(PortfolioIndicators { portfolios })
@@ -273,38 +281,25 @@ impl PortfolioIndicators {
         end: Date,
         step: Step,
         spot_provider: &mut P,
-    ) -> Result<Vec<PortfolioIndicator>, Error>
+    ) -> Vec<PortfolioIndicator>
     where
         P: Provider,
     {
         let mut data = Vec::new();
-        let result =
-            DateByStepIterator::new(begin, end, step).fold((begin, None), |accu, end_period| {
-                if accu.1.is_some() {
-                    accu
-                } else {
-                    let begin_period = accu.0;
-                    match PortfolioIndicator::from_portfolio(
-                        portfolio,
-                        begin_period,
-                        end_period,
-                        spot_provider,
-                    ) {
-                        Ok(value) => {
-                            if !value.positions.is_empty() {
-                                data.push(value);
-                            }
-                            (end_period, None)
-                        }
-                        Err(error) => (end_period, Some(error)),
-                    }
-                }
-            });
-        if let Some(error) = result.1 {
-            Err(error)
-        } else {
-            Ok(data)
-        }
+        DateByStepIterator::new(begin, end, step).fold(begin, |begin_period, end_period| {
+            let value = PortfolioIndicator::from_portfolio(
+                portfolio,
+                begin_period,
+                end_period,
+                spot_provider,
+            );
+            if !value.positions.is_empty() {
+                data.push(value);
+            }
+
+            end_period
+        });
+        data
     }
 
     pub fn dump_indicators_in_csv(&self, filename: &str) -> Result<(), Error> {
