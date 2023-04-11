@@ -15,7 +15,7 @@ mod referential;
 use historical::{HistoricalData, NullRequester, Requester, YahooRequester};
 use persistence::SQLitePersistance;
 use portfolio::Portfolio;
-use pricer::{PortfolioIndicators, Step};
+use pricer::PortfolioIndicators;
 use referential::Referential;
 
 use crate::error::Error;
@@ -99,19 +99,13 @@ fn main() -> Result<(), Error> {
     // compute main portfolio
     let compute_begin = portfolio.get_trade_date()?;
     let compute_end = chrono::Utc::now().date_naive();
-    for step in vec![Step::Day, Step::Week, Step::Month, Step::Year].iter() {
-        let portfolio_indicators = PortfolioIndicators::from_portfolio(
-            &portfolio,
-            compute_begin,
-            compute_end,
-            *step,
-            &mut provider,
-        )?;
+    let portfolio_indicators =
+        PortfolioIndicators::from_portfolio(&portfolio, compute_begin, compute_end, &mut provider)?;
 
-        //
-        // dump output
-        dump_portfolio_indicators(&args.output_dir, &portfolio, &portfolio_indicators, *step)?;
-    }
+    //
+    // dump output
+    dump_portfolio_indicators(&args.output_dir, &portfolio, &portfolio_indicators)?;
+
     Ok(())
 }
 
@@ -119,17 +113,16 @@ fn dump_portfolio_indicators(
     output_dir: &str,
     portfolio: &Portfolio,
     indicators: &PortfolioIndicators,
-    step: Step,
 ) -> Result<(), Error> {
-    let filename = format!("{}/indicators_{}_{}.csv", output_dir, step, portfolio.name);
-    indicators.dump_indicators_in_csv(&filename)?;
+    let filename = format!("{}/indicators_{}.csv", output_dir, portfolio.name);
+    indicators.dump_position_indicators_in_csv(&filename)?;
 
     for instrument_name in portfolio.get_instrument_name_list().iter() {
         let filename = format!(
-            "{}/indicators_{}_{}_{}.csv",
-            output_dir, step, portfolio.name, instrument_name
+            "{}/indicators_{}_{}.csv",
+            output_dir, portfolio.name, instrument_name
         );
-        indicators.dump_instrument_indicators_in_csv(instrument_name, &filename)?;
+        indicators.dump_position_instrument_indicators_in_csv(instrument_name, &filename)?;
     }
 
     Ok(())
