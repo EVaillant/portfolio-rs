@@ -3,7 +3,7 @@ use crate::alias::Date;
 use crate::error::{Error, ErrorKind};
 use crate::marketdata::Instrument;
 
-use log::{debug, info};
+use log::{debug, info, warn};
 use regex::Regex;
 use reqwest::blocking::Client;
 use reqwest::header::{HeaderMap, HeaderValue};
@@ -123,14 +123,13 @@ impl YahooRequester {
         })?;
         let mut csv_reader = csv::Reader::from_reader(output.as_bytes());
         let mut data_frames: Vec<DataFrame> = Vec::new();
-        for result in csv_reader.deserialize() {
-            let record: YahooDataFrame = result.map_err(|error| {
-                Error::new(
-                    ErrorKind::Historical,
-                    format!("invalid csv format ticker:{ticker} error:{error} csv:{output}"),
-                )
-            })?;
-            data_frames.push(record.into());
+        for result in csv_reader.deserialize::<YahooDataFrame>() {
+            match result {
+                Ok(record) => data_frames.push(record.into()),
+                Err(error) => {
+                    warn!("invalid csv format ticker:{ticker} error:{error}");
+                }
+            };
         }
         Ok(data_frames)
     }
