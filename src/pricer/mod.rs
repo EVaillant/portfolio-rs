@@ -3,37 +3,14 @@ use crate::error::Error;
 use crate::historical::{DataFrame, Provider};
 use crate::marketdata::Instrument;
 use crate::portfolio::{Portfolio, Position, Way};
-use chrono::naive::Days;
-use chrono::Datelike;
 use std::fs::File;
 use std::io::Write;
 use std::rc::Rc;
 
 use log::{debug, info};
 
-pub struct Pnl {
-    pub beginning: f64,
-    pub daily: f64,
-    pub weekly: f64,
-    pub monthly: f64,
-    pub yearly: f64,
-}
-
-impl Pnl {
-    pub fn new(beginning: f64, daily: f64, weekly: f64, monthly: f64, yearly: f64) -> Self {
-        Self {
-            beginning,
-            daily: Self::compute_(beginning, daily),
-            weekly: Self::compute_(beginning, weekly),
-            monthly: Self::compute_(beginning, monthly),
-            yearly: Self::compute_(beginning, yearly),
-        }
-    }
-
-    fn compute_(current: f64, last: f64) -> f64 {
-        (current + 1.0) / (last + 1.0) - 1.0
-    }
-}
+mod pnl;
+use pnl::{make_pnls, Pnl};
 
 pub struct PositionIndicator {
     pub spot: DataFrame,
@@ -46,7 +23,11 @@ pub struct PositionIndicator {
     pub nominal: f64,
     pub dividends: f64,
     pub tax: f64,
-    pub pnl: Pnl,
+    pub current_pnl: Pnl,
+    pub daily_pnl: Pnl,
+    pub weekly_pnl: Pnl,
+    pub monthly_pnl: Pnl,
+    pub yearly_pnl: Pnl,
     pub earning: f64,
     pub earning_latent: f64,
 }
@@ -90,19 +71,25 @@ impl PositionIndicator {
             })
             .unwrap_or_else(|| 0.0);
 
-        let pnl = if quantity == 0.0 {
-            Pnl::new(0.0, 0.0, 0.0, 0.0, 0.0)
-        } else {
-            let (daily, weekly, monthly, yearly) =
-                Self::previous_pnl_(date, position, previous_value);
-            Pnl::new(
-                (valuation - nominal) / nominal,
-                daily,
-                weekly,
-                monthly,
-                yearly,
-            )
-        };
+        let (current_pnl, daily_pnl, weekly_pnl, monthly_pnl, yearly_pnl) =
+            make_pnls(date, nominal, valuation, |date, delta| {
+                date.checked_sub_days(delta)
+                    .and_then(|previous_day| {
+                        previous_value.iter().rev().find(|item| {
+                            item.date <= previous_day
+                                && item.positions.iter().any(|item_postion| {
+                                    item_postion.instrument == position.instrument
+                                })
+                        })
+                    })
+                    .and_then(|item| {
+                        item.positions
+                            .iter()
+                            .find(|item_postion| item_postion.instrument == position.instrument)
+                    })
+                    .map(|item| (item.nominal, item.valuation))
+            });
+
         let earning = position
             .trades
             .iter()
@@ -127,7 +114,11 @@ impl PositionIndicator {
             nominal,
             dividends,
             tax,
-            pnl,
+            current_pnl,
+            daily_pnl,
+            weekly_pnl,
+            monthly_pnl,
+            yearly_pnl,
             earning,
             earning_latent,
         }
@@ -160,57 +151,6 @@ impl PositionIndicator {
                 },
             )
     }
-
-    fn previous_pnl_(
-        date: Date,
-        position: &Position,
-        previous_value: &[PortfolioIndicator],
-    ) -> (f64, f64, f64, f64) {
-        let previous_day = Self::get_previous_pnl_(date, Days::new(1), position, previous_value);
-        let previous_week = Self::get_previous_pnl_(
-            date,
-            Days::new((date.weekday().num_days_from_monday() + 1) as u64),
-            position,
-            previous_value,
-        );
-        let previous_month =
-            Self::get_previous_pnl_(date, Days::new(date.day() as u64), position, previous_value);
-        let previous_year =
-            Date::from_ymd_opt(date.year() - 1, 12, 31).and_then(|previous_year_date| {
-                Self::get_previous_pnl_(previous_year_date, Days::new(0), position, previous_value)
-            });
-
-        (
-            previous_day.unwrap_or(0.0),
-            previous_week.unwrap_or(0.0),
-            previous_month.unwrap_or(0.0),
-            previous_year.unwrap_or(0.0),
-        )
-    }
-
-    fn get_previous_pnl_(
-        date: Date,
-        delta: Days,
-        position: &Position,
-        previous_value: &[PortfolioIndicator],
-    ) -> Option<f64> {
-        date.checked_sub_days(delta)
-            .and_then(|previous_day| {
-                previous_value.iter().rev().find(|item| {
-                    item.date <= previous_day
-                        && item
-                            .positions
-                            .iter()
-                            .any(|item_postion| item_postion.instrument == position.instrument)
-                })
-            })
-            .and_then(|item| {
-                item.positions
-                    .iter()
-                    .find(|item_postion| item_postion.instrument == position.instrument)
-            })
-            .map(|item| item.pnl.beginning)
-    }
 }
 
 pub struct PortfolioIndicator {
@@ -220,7 +160,11 @@ pub struct PortfolioIndicator {
     pub nominal: f64,
     pub dividends: f64,
     pub tax: f64,
-    pub pnl: Pnl,
+    pub current_pnl: Pnl,
+    pub daily_pnl: Pnl,
+    pub weekly_pnl: Pnl,
+    pub monthly_pnl: Pnl,
+    pub yearly_pnl: Pnl,
     pub earning: f64,
     pub earning_latent: f64,
 }
@@ -253,18 +197,17 @@ impl PortfolioIndicator {
             },
         );
 
-        let pnl = if nominal == 0.0 {
-            Pnl::new(0.0, 0.0, 0.0, 0.0, 0.0)
-        } else {
-            let (daily, weekly, monthly, yearly) = Self::previous_pnl_(date, previous_value);
-            Pnl::new(
-                (valuation - nominal) / nominal,
-                daily,
-                weekly,
-                monthly,
-                yearly,
-            )
-        };
+        let (current_pnl, daily_pnl, weekly_pnl, monthly_pnl, yearly_pnl) =
+            make_pnls(date, nominal, valuation, |date, delta| {
+                date.checked_sub_days(delta)
+                    .and_then(|previous_day| {
+                        previous_value
+                            .iter()
+                            .rev()
+                            .find(|item| item.date <= previous_day)
+                    })
+                    .map(|item| (item.nominal, item.valuation))
+            });
 
         PortfolioIndicator {
             date,
@@ -273,7 +216,11 @@ impl PortfolioIndicator {
             nominal,
             dividends,
             tax,
-            pnl,
+            current_pnl,
+            daily_pnl,
+            weekly_pnl,
+            monthly_pnl,
+            yearly_pnl,
             earning,
             earning_latent,
         }
@@ -315,43 +262,6 @@ impl PortfolioIndicator {
             }
         }
         data
-    }
-
-    fn previous_pnl_(date: Date, previous_value: &[PortfolioIndicator]) -> (f64, f64, f64, f64) {
-        let previous_day = Self::get_previous_pnl_(date, Days::new(1), previous_value);
-        let previous_week = Self::get_previous_pnl_(
-            date,
-            Days::new((date.weekday().num_days_from_monday() + 1) as u64),
-            previous_value,
-        );
-        let previous_month =
-            Self::get_previous_pnl_(date, Days::new(date.day() as u64), previous_value);
-        let previous_year =
-            Date::from_ymd_opt(date.year() - 1, 12, 31).and_then(|previous_year_date| {
-                Self::get_previous_pnl_(previous_year_date, Days::new(0), previous_value)
-            });
-
-        (
-            previous_day.unwrap_or(0.0),
-            previous_week.unwrap_or(0.0),
-            previous_month.unwrap_or(0.0),
-            previous_year.unwrap_or(0.0),
-        )
-    }
-
-    fn get_previous_pnl_(
-        date: Date,
-        delta: Days,
-        previous_value: &[PortfolioIndicator],
-    ) -> Option<f64> {
-        date.checked_sub_days(delta)
-            .and_then(|previous_day| {
-                previous_value
-                    .iter()
-                    .rev()
-                    .find(|item| item.date <= previous_day)
-            })
-            .map(|item| item.pnl.beginning)
     }
 }
 
@@ -436,16 +346,16 @@ impl PortfolioIndicators {
                         portfolio_indicator.nominal,
                         portfolio_indicator.dividends,
                         portfolio_indicator.tax,
-                        portfolio_indicator.pnl.beginning,
-                        portfolio_indicator.pnl.daily,
-                        portfolio_indicator.pnl.weekly,
-                        portfolio_indicator.pnl.monthly,
-                        portfolio_indicator.pnl.yearly,
-                        portfolio_indicator.pnl.beginning * portfolio_indicator.nominal,
-                        portfolio_indicator.pnl.daily * portfolio_indicator.nominal,
-                        portfolio_indicator.pnl.weekly * portfolio_indicator.nominal,
-                        portfolio_indicator.pnl.monthly * portfolio_indicator.nominal,
-                        portfolio_indicator.pnl.yearly * portfolio_indicator.nominal,
+                        portfolio_indicator.current_pnl.value_pct,
+                        portfolio_indicator.daily_pnl.value_pct,
+                        portfolio_indicator.weekly_pnl.value_pct,
+                        portfolio_indicator.monthly_pnl.value_pct,
+                        portfolio_indicator.yearly_pnl.value_pct,
+                        portfolio_indicator.current_pnl.value,
+                        portfolio_indicator.daily_pnl.value,
+                        portfolio_indicator.weekly_pnl.value,
+                        portfolio_indicator.monthly_pnl.value,
+                        portfolio_indicator.yearly_pnl.value,
                         portfolio_indicator.earning,
                         portfolio_indicator.earning_latent
                     )
@@ -487,16 +397,16 @@ impl PortfolioIndicators {
                             position_indicator.nominal,
                             position_indicator.dividends,
                             position_indicator.tax,
-                            position_indicator.pnl.beginning,
-                            position_indicator.pnl.daily,
-                            position_indicator.pnl.weekly,
-                            position_indicator.pnl.monthly,
-                            position_indicator.pnl.yearly,
-                            position_indicator.pnl.beginning * position_indicator.nominal,
-                            position_indicator.pnl.daily * position_indicator.nominal,
-                            position_indicator.pnl.weekly * position_indicator.nominal,
-                            position_indicator.pnl.monthly * position_indicator.nominal,
-                            position_indicator.pnl.yearly * position_indicator.nominal,
+                            position_indicator.current_pnl.value_pct,
+                            position_indicator.daily_pnl.value_pct,
+                            position_indicator.weekly_pnl.value_pct,
+                            position_indicator.monthly_pnl.value_pct,
+                            position_indicator.yearly_pnl.value_pct,
+                            position_indicator.current_pnl.value,
+                            position_indicator.daily_pnl.value,
+                            position_indicator.weekly_pnl.value,
+                            position_indicator.monthly_pnl.value,
+                            position_indicator.yearly_pnl.value,
                             position_indicator.earning,
                             position_indicator.earning_latent,
                         )
