@@ -210,9 +210,7 @@ impl Deserialize for CashVariationSource {
     {
         let value: String = deserializer.read_string()?;
         match value.as_str() {
-            "trade" => Ok(Self::Trade),
-            "payement" => Ok(Self::Payement),
-            "dividend" => Ok(Self::Dividend),
+            "payment" => Ok(Self::Payment),
             _ => Err(Error::new(
                 ErrorKind::Referential,
                 format!("unable to convert {value} into CashVariationSource"),

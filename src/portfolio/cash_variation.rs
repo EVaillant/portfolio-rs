@@ -1,10 +1,8 @@
 use crate::alias::DateTime;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum CashVariationSource {
-    Trade,
-    Payement,
-    Dividend,
+    Payment,
 }
 
 #[derive(Debug)]

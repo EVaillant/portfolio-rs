@@ -2,7 +2,7 @@ use crate::alias::Date;
 use crate::error::Error;
 use crate::historical::{DataFrame, Provider};
 use crate::marketdata::Instrument;
-use crate::portfolio::{Portfolio, Position, Way};
+use crate::portfolio::{CashVariationSource, Portfolio, Position, Way};
 use std::fs::File;
 use std::io::Write;
 use std::rc::Rc;
@@ -90,17 +90,18 @@ impl PositionIndicator {
                     .map(|item| (item.nominal, item.valuation))
             });
 
-        let earning = position
-            .trades
-            .iter()
-            .filter(|trade| trade.date.date() <= date)
-            .fold(dividends, |earning, trade| {
-                let trade_price = match trade.way {
-                    Way::Sell => trade.price * trade.quantity,
-                    Way::Buy => -trade.price * trade.quantity,
-                };
-                trade_price + earning - trade.tax
-            });
+        let earning = dividends
+            + position
+                .trades
+                .iter()
+                .filter(|trade| trade.date.date() <= date)
+                .fold(0.0, |earning, trade| {
+                    let trade_price = match trade.way {
+                        Way::Sell => trade.price * trade.quantity,
+                        Way::Buy => -trade.price * trade.quantity,
+                    };
+                    trade_price + earning - trade.tax
+                });
         let earning_latent = earning + valuation;
 
         PositionIndicator {
@@ -167,6 +168,7 @@ pub struct PortfolioIndicator {
     pub yearly_pnl: Pnl,
     pub earning: f64,
     pub earning_latent: f64,
+    pub cash: f64,
 }
 
 impl PortfolioIndicator {
@@ -209,6 +211,19 @@ impl PortfolioIndicator {
                     .map(|item| (item.nominal, item.valuation))
             });
 
+        let cash = portfolio
+            .cash
+            .iter()
+            .filter(|variation| {
+                variation.date.date() <= date && variation.source == CashVariationSource::Payment
+            })
+            .map(|variation| variation.position)
+            .sum::<f64>()
+            + positions
+                .iter()
+                .map(|position| position.earning)
+                .sum::<f64>();
+
         PortfolioIndicator {
             date,
             positions,
@@ -223,6 +238,7 @@ impl PortfolioIndicator {
             yearly_pnl,
             earning,
             earning_latent,
+            cash,
         }
     }
 
@@ -334,13 +350,14 @@ impl PortfolioIndicators {
     pub fn dump_position_indicators_in_csv(&self, filename: &str) -> Result<(), Error> {
         let mut output_stream = File::create(filename)?;
         output_stream.write_all(
-            "Date;Valuation;Nominal;Dividends;Tax;P&L(%);P&L Daily(%);P&L Weekly(%),P&L Monthly(%);P&L Yearly(%);P&L;P&L Daily;P&L Weekly;P&L Monthly;P&L Yearly;Earning;Earning + Valuation\n".as_bytes(),
+            "Date;Cash;Valuation;Nominal;Dividends;Tax;P&L(%);P&L Daily(%);P&L Weekly(%),P&L Monthly(%);P&L Yearly(%);P&L;P&L Daily;P&L Weekly;P&L Monthly;P&L Yearly;Earning;Earning + Valuation\n".as_bytes(),
         )?;
         for portfolio_indicator in self.portfolios.iter() {
             output_stream.write_all(
                 format!(
-                    "{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{}\n",
+                    "{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{}\n",
                     portfolio_indicator.date.format("%Y-%m-%d"),
+                    portfolio_indicator.cash,
                     portfolio_indicator.valuation,
                     portfolio_indicator.nominal,
                     portfolio_indicator.dividends,
