@@ -7,18 +7,19 @@ mod alias;
 mod error;
 mod historical;
 mod marketdata;
+mod output;
 mod persistence;
 mod portfolio;
 mod pricer;
 mod referential;
 
 use historical::{HistoricalData, NullRequester, Requester, YahooRequester};
+use output::{CsvOutput, Output};
 use persistence::SQLitePersistance;
-use portfolio::Portfolio;
 use pricer::PortfolioIndicators;
 use referential::Referential;
 
-use crate::error::Error;
+use error::Error;
 
 #[derive(ValueEnum, Copy, Clone, Debug, PartialEq, Eq)]
 enum SpotSource {
@@ -27,6 +28,20 @@ enum SpotSource {
 }
 
 impl std::fmt::Display for SpotSource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.to_possible_value()
+            .expect("no values are skipped")
+            .get_name()
+            .fmt(f)
+    }
+}
+
+#[derive(ValueEnum, Copy, Clone, Debug, PartialEq, Eq)]
+enum OutputType {
+    Csv,
+}
+
+impl std::fmt::Display for OutputType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.to_possible_value()
             .expect("no values are skipped")
@@ -51,6 +66,10 @@ struct Args {
     #[clap(short, long, value_parser)]
     cache_file: String,
 
+    /// output type
+    #[clap(default_value_t = OutputType::Csv, short, long, value_parser)]
+    output_type: OutputType,
+
     /// output dir
     #[clap(short, long, value_parser)]
     output_dir: String,
@@ -64,6 +83,13 @@ fn make_requester(source: SpotSource) -> Result<Box<dyn Requester>, Error> {
     let value: Box<dyn Requester> = match source {
         SpotSource::Null => Box::new(NullRequester),
         SpotSource::Yahoo => Box::new(YahooRequester::new()?),
+    };
+    Ok(value)
+}
+
+fn make_output(output_type: OutputType, output_dir: &str) -> Result<Box<dyn Output>, Error> {
+    let value: Box<dyn Output> = match output_type {
+        OutputType::Csv => Box::new(CsvOutput::new(output_dir)),
     };
     Ok(value)
 }
@@ -103,27 +129,9 @@ fn main() -> Result<(), Error> {
         PortfolioIndicators::from_portfolio(&portfolio, compute_begin, compute_end, &mut provider)?;
 
     //
-    // dump output
-    dump_portfolio_indicators(&args.output_dir, &portfolio, &portfolio_indicators)?;
-
-    Ok(())
-}
-
-fn dump_portfolio_indicators(
-    output_dir: &str,
-    portfolio: &Portfolio,
-    indicators: &PortfolioIndicators,
-) -> Result<(), Error> {
-    let filename = format!("{}/indicators_{}.csv", output_dir, portfolio.name);
-    indicators.dump_position_indicators_in_csv(&filename)?;
-
-    for instrument_name in portfolio.get_instrument_name_list().iter() {
-        let filename = format!(
-            "{}/indicators_{}_{}.csv",
-            output_dir, portfolio.name, instrument_name
-        );
-        indicators.dump_position_instrument_indicators_in_csv(instrument_name, &filename)?;
-    }
+    // output
+    let output = make_output(args.output_type, &args.output_dir)?;
+    output.write_indicators(&portfolio, &portfolio_indicators)?;
 
     Ok(())
 }
