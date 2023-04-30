@@ -67,7 +67,7 @@ struct Args {
     cache_file: String,
 
     /// output type
-    #[clap(default_value_t = OutputType::Csv, short, long, value_parser)]
+    #[clap(default_value_t = OutputType::Csv, short =  't', long, value_parser)]
     output_type: OutputType,
 
     /// output dir
