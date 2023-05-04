@@ -1,16 +1,10 @@
 use crate::alias::{Date, DateTime};
-use crate::error::{Error, ErrorKind};
+use crate::error::Error;
 use crate::marketdata::{Currency, Dividend, Instrument, Market, ParentCurrency};
 use crate::portfolio::{CashVariation, CashVariationSource, Portfolio, Position, Trade, Way};
 
 use serde_json::Value;
 use std::rc::Rc;
-
-impl From<serde_json::Error> for Error {
-    fn from(error: serde_json::Error) -> Self {
-        Error::new(ErrorKind::Referential, format!("not json format : {error}"))
-    }
-}
 
 pub trait Resolver {
     fn resolv_currency(&mut self, name: &str) -> Result<Rc<Currency>, Error>;
@@ -59,11 +53,9 @@ impl<'a, R: Resolver> Deserializer for DeserializerValue<'a, R> {
         let value = self
             .value
             .as_object()
-            .ok_or_else(|| Error::new(ErrorKind::Referential, "field must be an object"))?
+            .ok_or_else(|| Error::new_referential("field must be an object".to_string()))?
             .get(name)
-            .ok_or_else(|| {
-                Error::new(ErrorKind::Referential, format!("field {name} is mandatory"))
-            })?;
+            .ok_or_else(|| Error::new_referential(format!("field {name} is mandatory")))?;
         let sub_deserializer = DeserializerValue {
             value,
             resolver: self.resolver,
@@ -77,7 +69,7 @@ impl<'a, R: Resolver> Deserializer for DeserializerValue<'a, R> {
     {
         self.value
             .as_object()
-            .ok_or_else(|| Error::new(ErrorKind::Referential, "field must be an object"))?
+            .ok_or_else(|| Error::new_referential("field must be an object".to_string()))?
             .get(name)
             .map(|value| {
                 let sub_deserializer = DeserializerValue {
@@ -93,19 +85,19 @@ impl<'a, R: Resolver> Deserializer for DeserializerValue<'a, R> {
         self.value
             .as_str()
             .map(|item| item.to_string())
-            .ok_or_else(|| Error::new(ErrorKind::Referential, "field must be a string"))
+            .ok_or_else(|| Error::new_referential("field must be a string".to_string()))
     }
 
     fn read_f64(&self) -> Result<f64, Error> {
         self.value
             .as_f64()
-            .ok_or_else(|| Error::new(ErrorKind::Referential, "field must be a f64"))
+            .ok_or_else(|| Error::new_referential("field must be a f64".to_string()))
     }
 
     fn read_u64(&self) -> Result<u64, Error> {
         self.value
             .as_u64()
-            .ok_or_else(|| Error::new(ErrorKind::Referential, "field must be a u64"))
+            .ok_or_else(|| Error::new_referential("field must be a u64".to_string()))
     }
 
     fn read_array<T>(&mut self) -> Result<Vec<T>, Error>
@@ -114,7 +106,7 @@ impl<'a, R: Resolver> Deserializer for DeserializerValue<'a, R> {
     {
         self.value
             .as_array()
-            .ok_or_else(|| Error::new(ErrorKind::Referential, "field must be an array"))?
+            .ok_or_else(|| Error::new_referential("field must be an array".to_string()))?
             .iter()
             .map(|value| {
                 let deserializer = DeserializerValue {
@@ -195,10 +187,9 @@ impl Deserialize for Way {
         match value.as_str() {
             "buy" => Ok(Self::Buy),
             "sell" => Ok(Self::Sell),
-            _ => Err(Error::new(
-                ErrorKind::Referential,
-                format!("unable to convert {value} into Way"),
-            )),
+            _ => Err(Error::new_referential(format!(
+                "unable to convert {value} into Way"
+            ))),
         }
     }
 }
@@ -211,10 +202,9 @@ impl Deserialize for CashVariationSource {
         let value: String = deserializer.read_string()?;
         match value.as_str() {
             "payment" => Ok(Self::Payment),
-            _ => Err(Error::new(
-                ErrorKind::Referential,
-                format!("unable to convert {value} into CashVariationSource"),
-            )),
+            _ => Err(Error::new_referential(format!(
+                "unable to convert {value} into CashVariationSource"
+            ))),
         }
     }
 }
@@ -228,10 +218,9 @@ impl Deserialize for DateTime {
         let result = chrono::DateTime::parse_from_rfc3339(value.as_str());
         match result {
             Ok(value) => Ok(value.naive_local()),
-            Err(err) => Err(Error::new(
-                ErrorKind::Referential,
-                format!("unable to convert {value} into Date because {err}"),
-            )),
+            Err(err) => Err(Error::new_referential(format!(
+                "unable to convert {value} into Date because {err}"
+            ))),
         }
     }
 }
@@ -245,10 +234,9 @@ impl Deserialize for Date {
         let result = chrono::NaiveDate::parse_from_str(&value, "%Y-%m-%d");
         match result {
             Ok(value) => Ok(value),
-            Err(err) => Err(Error::new(
-                ErrorKind::Referential,
-                format!("unable to convert {value} into Date because {err}"),
-            )),
+            Err(err) => Err(Error::new_referential(format!(
+                "unable to convert {value} into Date because {err}"
+            ))),
         }
     }
 }

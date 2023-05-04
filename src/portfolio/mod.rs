@@ -9,7 +9,7 @@ pub use trade::*;
 pub use way::*;
 
 use crate::alias::Date;
-use crate::error::{Error, ErrorKind};
+use crate::error::Error;
 use crate::marketdata::Currency;
 use std::collections::HashSet;
 use std::rc::Rc;
@@ -32,8 +32,7 @@ impl Portfolio {
             .collect::<Vec<_>>();
         trade_dates.sort();
 
-        let first_trade = trade_dates.first().ok_or(Error::new(
-            ErrorKind::Referential,
+        let first_trade = trade_dates.first().ok_or(Error::new_portfolio(
             "unable to detect first trade date in the portfolio",
         ))?;
 

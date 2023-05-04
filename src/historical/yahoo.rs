@@ -1,6 +1,6 @@
 use super::{DataFrame, Requester};
 use crate::alias::Date;
-use crate::error::{Error, ErrorKind};
+use crate::error::Error;
 use crate::marketdata::Instrument;
 
 use log::{debug, info, warn};
@@ -63,12 +63,7 @@ impl YahooRequester {
             .cookie_store(true)
             .default_headers(headers)
             .build()
-            .map_err(|error| {
-                Error::new(
-                    ErrorKind::Historical,
-                    format!("failed to init reqwest : {error}"),
-                )
-            })?;
+            .map_err(|error| Error::new_historical(format!("failed to init reqwest : {error}")))?;
 
         Ok(Self {
             reqwest_client: client,
@@ -81,17 +76,15 @@ impl YahooRequester {
             .get(format!("https://finance.yahoo.com/quote/{ticker}/history"))
             .send()
             .map_err(|error| {
-                Error::new(
-                    ErrorKind::Historical,
+                Error::new_historical(
                     format!(
                         "request failed to get history to have crumb ticker:{ticker} error:{error}"
-                    ),
+                    )
                 )
             })?
             .read_to_string(&mut body)
             .map_err(|error| {
-                Error::new(
-                    ErrorKind::Historical,
+                Error::new_historical(
                     format!(
                         "request failed to get body of history to have crumb ticker:{ticker} error:{error}"),
                 )
@@ -114,11 +107,11 @@ impl YahooRequester {
         let output = self.reqwest_client.get(format!("https://query1.finance.yahoo.com/v7/finance/download/{}?period1={}&period2={}&interval=1d&events=history&crumb={}", ticker, begin.and_hms_opt(0, 0, 0).unwrap().timestamp(), end.and_hms_opt(0, 0, 0).unwrap().timestamp(), crumb))
         .send()
         .map_err(|error| {
-            Error::new(ErrorKind::Historical,format!("failed to request historic ticker:{ticker} error:{error}"))
+            Error::new_historical(format!("failed to request historic ticker:{ticker} error:{error}"))
         })?
         .text()
         .map_err(|error| {
-            Error::new(ErrorKind::Historical,format!(
+            Error::new_historical(format!(
                 "failed to read body from request historic ticker:{ticker} error:{error}"))
         })?;
         let mut csv_reader = csv::Reader::from_reader(output.as_bytes());
@@ -149,10 +142,7 @@ impl Requester for YahooRequester {
             end.format("%Y-%m-%d")
         );
         let ticker_yahoo = instrument.ticker_yahoo.as_ref().ok_or_else(|| {
-            Error::new(
-                ErrorKind::Historical,
-                format!("missing yahoo ticker on {}", instrument.name),
-            )
+            Error::new_historical(format!("missing yahoo ticker on {}", instrument.name))
         })?;
         debug!("try to request crumb for {}", instrument.name);
         let crumb = self.request_crumb(ticker_yahoo)?;

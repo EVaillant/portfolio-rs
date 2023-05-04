@@ -1,14 +1,8 @@
 use crate::alias::Date;
-use crate::error::{Error, ErrorKind};
+use crate::error::Error;
 use crate::historical::{DataFrame, Persistance};
 use crate::marketdata::Instrument;
 use rusqlite::{Connection, Result};
-
-impl From<rusqlite::Error> for Error {
-    fn from(error: rusqlite::Error) -> Self {
-        Error::new(ErrorKind::Persistance, format!("sqlite error : {error}"))
-    }
-}
 
 struct SQLiteDate(Date);
 impl rusqlite::types::FromSql for SQLiteDate {

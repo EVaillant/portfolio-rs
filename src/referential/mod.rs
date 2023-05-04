@@ -1,7 +1,7 @@
 mod cache;
 mod serialize;
 
-use crate::error::{Error, ErrorKind};
+use crate::error::Error;
 use crate::marketdata::{Currency, Instrument, Market};
 use crate::portfolio::Portfolio;
 
@@ -14,28 +14,19 @@ use std::rc::Rc;
 impl serialize::Resolver for Referential {
     fn resolv_currency(&mut self, name: &str) -> Result<Rc<Currency>, Error> {
         self.get_currency_by_name(name).map_err(|err| {
-            Error::new(
-                ErrorKind::Referential,
-                format!("unable to resolv {name} because {err:?}"),
-            )
+            Error::new_referential(format!("unable to resolv {name} because {err:?}"))
         })
     }
 
     fn resolv_market(&mut self, name: &str) -> Result<Rc<Market>, Error> {
         self.get_market_by_name(name).map_err(|err| {
-            Error::new(
-                ErrorKind::Referential,
-                format!("unable to resolv {name} because {err:?}"),
-            )
+            Error::new_referential(format!("unable to resolv {name} because {err:?}"))
         })
     }
 
     fn resolv_instrument(&mut self, name: &str) -> Result<Rc<Instrument>, Error> {
         self.get_instrument_by_name(name).map_err(|err| {
-            Error::new(
-                ErrorKind::Referential,
-                format!("unable to resolv {name} because {err:?}"),
-            )
+            Error::new_referential(format!("unable to resolv {name} because {err:?}"))
         })
     }
 }
@@ -110,10 +101,10 @@ impl Referential {
         filename.push(name);
         filename.set_extension("json");
         if !filename.is_file() {
-            return Err(Error::new(
-                ErrorKind::Referential,
-                format!("{} is not valid file", filename.display()),
-            ));
+            return Err(Error::new_referential(format!(
+                "{} is not valid file",
+                filename.display()
+            )));
         }
         Ok(filename)
     }

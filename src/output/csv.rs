@@ -6,27 +6,31 @@ use crate::pricer::PortfolioIndicators;
 use std::fs::File;
 use std::io::Write;
 
-pub struct CsvOutput {
+pub struct CsvOutput<'a> {
     output_dir: String,
+    portfolio: &'a Portfolio,
+    indicators: &'a PortfolioIndicators,
 }
 
-impl CsvOutput {
-    pub fn new(output_dir: &str) -> Self {
+impl<'a> CsvOutput<'a> {
+    pub fn new(
+        output_dir: &str,
+        portfolio: &'a Portfolio,
+        indicators: &'a PortfolioIndicators,
+    ) -> Self {
         Self {
             output_dir: output_dir.to_string(),
+            portfolio,
+            indicators,
         }
     }
 
-    fn write_position_indicators(
-        &self,
-        indicators: &PortfolioIndicators,
-        filename: &str,
-    ) -> Result<(), Error> {
+    fn write_position_indicators(&self, filename: &str) -> Result<(), Error> {
         let mut output_stream = File::create(filename)?;
         output_stream.write_all(
             "Date;Cash;Valuation;Nominal;Dividends;Tax;P&L(%);P&L Daily(%);P&L Weekly(%),P&L Monthly(%);P&L Yearly(%);P&L;P&L Daily;P&L Weekly;P&L Monthly;P&L Yearly;Earning;Earning + Valuation\n".as_bytes(),
         )?;
-        for portfolio_indicator in indicators.portfolios.iter() {
+        for portfolio_indicator in self.indicators.portfolios.iter() {
             output_stream.write_all(
                 format!(
                     "{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{}\n",
@@ -57,7 +61,6 @@ impl CsvOutput {
 
     fn write_position_instrument_indicators(
         &self,
-        indicators: &PortfolioIndicators,
         instrument_name: &str,
         filename: &str,
     ) -> Result<(), Error> {
@@ -65,7 +68,7 @@ impl CsvOutput {
         output_stream.write_all(
           "Date;Instrument;Spot(Close);Quantity;Unit Price;Valuation;Nominal;Dividends;Tax;P&L(%);P&L Daily(%);P&L Weekly(%);P&L Monthly(%);P&L Yearly(%);P&L;P&L Daily;P&L Weekly;P&L Monthly;P&L Yearly;Earning;Earning + Valuation\n".as_bytes(),
       )?;
-        for portfolio_indicator in indicators.portfolios.iter() {
+        for portfolio_indicator in self.indicators.portfolios.iter() {
             if let Some(position_indicator) = portfolio_indicator
                 .positions
                 .iter()
@@ -104,21 +107,17 @@ impl CsvOutput {
     }
 }
 
-impl Output for CsvOutput {
-    fn write_indicators(
-        &self,
-        portfolio: &Portfolio,
-        indicators: &PortfolioIndicators,
-    ) -> Result<(), Error> {
-        let filename = format!("{}/indicators_{}.csv", self.output_dir, portfolio.name);
-        self.write_position_indicators(indicators, &filename)?;
+impl<'a> Output for CsvOutput<'a> {
+    fn write_indicators(&mut self) -> Result<(), Error> {
+        let filename = format!("{}/indicators_{}.csv", self.output_dir, self.portfolio.name);
+        self.write_position_indicators(&filename)?;
 
-        for instrument_name in portfolio.get_instrument_name_list().iter() {
+        for instrument_name in self.portfolio.get_instrument_name_list().iter() {
             let filename = format!(
                 "{}/indicators_{}_{}.csv",
-                self.output_dir, portfolio.name, instrument_name
+                self.output_dir, self.portfolio.name, instrument_name
             );
-            self.write_position_instrument_indicators(indicators, instrument_name, &filename)?;
+            self.write_position_instrument_indicators(instrument_name, &filename)?;
         }
 
         Ok(())

@@ -14,7 +14,7 @@ mod pricer;
 mod referential;
 
 use historical::{HistoricalData, NullRequester, Requester, YahooRequester};
-use output::{CsvOutput, Output};
+use output::{CsvOutput, OdsOutput, Output};
 use persistence::SQLitePersistance;
 use pricer::PortfolioIndicators;
 use referential::Referential;
@@ -39,6 +39,7 @@ impl std::fmt::Display for SpotSource {
 #[derive(ValueEnum, Copy, Clone, Debug, PartialEq, Eq)]
 enum OutputType {
     Csv,
+    Ods,
 }
 
 impl std::fmt::Display for OutputType {
@@ -87,13 +88,6 @@ fn make_requester(source: SpotSource) -> Result<Box<dyn Requester>, Error> {
     Ok(value)
 }
 
-fn make_output(output_type: OutputType, output_dir: &str) -> Result<Box<dyn Output>, Error> {
-    let value: Box<dyn Output> = match output_type {
-        OutputType::Csv => Box::new(CsvOutput::new(output_dir)),
-    };
-    Ok(value)
-}
-
 fn main() -> Result<(), Error> {
     //
     // cli arg
@@ -129,9 +123,20 @@ fn main() -> Result<(), Error> {
         PortfolioIndicators::from_portfolio(&portfolio, compute_begin, compute_end, &mut provider)?;
 
     //
-    // output
-    let output = make_output(args.output_type, &args.output_dir)?;
-    output.write_indicators(&portfolio, &portfolio_indicators)?;
+    // write output
+    let mut output: Box<dyn Output> = match args.output_type {
+        OutputType::Csv => Box::new(CsvOutput::new(
+            &args.output_dir,
+            &portfolio,
+            &portfolio_indicators,
+        )),
+        OutputType::Ods => Box::new(OdsOutput::new(
+            &args.output_dir,
+            &portfolio,
+            &portfolio_indicators,
+        )?),
+    };
+    output.write_indicators()?;
 
     Ok(())
 }
