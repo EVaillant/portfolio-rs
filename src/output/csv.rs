@@ -1,5 +1,5 @@
+use super::Output;
 use crate::error::Error;
-use crate::output::Output;
 use crate::portfolio::Portfolio;
 use crate::pricer::PortfolioIndicators;
 

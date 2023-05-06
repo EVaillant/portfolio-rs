@@ -1,5 +1,5 @@
+use super::Output;
 use crate::error::Error;
-use crate::output::Output;
 use crate::portfolio::Portfolio;
 use crate::pricer::PortfolioIndicators;
 use spreadsheet_ods::format::{FormatNumberStyle, ValueFormatTrait};
@@ -207,7 +207,7 @@ impl<'a> OdsOutput<'a> {
     }
 
     fn write_position_instrument_indicators(&mut self, instrument_name: &str) -> Result<(), Error> {
-        let mut sheet = Sheet::new(format!("Indicators {}", instrument_name));
+        let mut sheet = Sheet::new(format!("Indicators-{}", instrument_name));
 
         // header
         for (i, header_name) in [

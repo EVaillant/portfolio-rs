@@ -1,5 +1,5 @@
+use super::Way;
 use crate::alias::DateTime;
-use crate::portfolio::Way;
 
 #[derive(Debug)]
 pub struct Trade {

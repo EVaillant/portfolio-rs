@@ -121,6 +121,7 @@ fn main() -> Result<(), Error> {
     let compute_end = chrono::Utc::now().date_naive();
     let portfolio_indicators =
         PortfolioIndicators::from_portfolio(&portfolio, compute_begin, compute_end, &mut provider)?;
+    info!("compute portfolio done");
 
     //
     // write output
@@ -137,6 +138,7 @@ fn main() -> Result<(), Error> {
         )?),
     };
     output.write_indicators()?;
+    info!("write output done");
 
     Ok(())
 }
