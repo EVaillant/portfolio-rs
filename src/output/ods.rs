@@ -250,139 +250,136 @@ impl<'a> OdsOutput<'a> {
             sheet.set_col_cellstyle(i, &currency_style_ref);
         }
 
-        let mut i = 0;
-        for portfolio_indicator in self.indicators.portfolios.iter() {
-            if let Some(position_indicator) = portfolio_indicator
-                .positions
-                .iter()
-                .find(|item| item.instrument.name == instrument_name)
-            {
-                sheet.set_value(1 + i as u32, 0, portfolio_indicator.date);
-                sheet.set_value(1 + i as u32, 1, position_indicator.spot.close());
-                sheet.set_value(1 + i as u32, 2, position_indicator.quantity);
-                sheet.set_value(
-                    1 + i as u32,
-                    3,
-                    currency!(
-                        &position_indicator.instrument.currency.name,
-                        position_indicator.unit_price
-                    ),
-                );
-                sheet.set_value(
-                    1 + i as u32,
-                    4,
-                    currency!(
-                        &position_indicator.instrument.currency.name,
-                        position_indicator.valuation
-                    ),
-                );
-                sheet.set_value(
-                    1 + i as u32,
-                    5,
-                    currency!(
-                        &position_indicator.instrument.currency.name,
-                        position_indicator.nominal
-                    ),
-                );
-                sheet.set_value(
-                    1 + i as u32,
-                    6,
-                    currency!(
-                        &position_indicator.instrument.currency.name,
-                        position_indicator.dividends
-                    ),
-                );
-                sheet.set_value(
-                    1 + i as u32,
-                    7,
-                    currency!(
-                        &position_indicator.instrument.currency.name,
-                        position_indicator.tax
-                    ),
-                );
-                sheet.set_value(
-                    1 + i as u32,
-                    8,
-                    percent!(position_indicator.current_pnl.value_pct),
-                );
-                sheet.set_value(
-                    1 + i as u32,
-                    9,
-                    percent!(position_indicator.daily_pnl.value_pct),
-                );
-                sheet.set_value(
-                    1 + i as u32,
-                    10,
-                    percent!(position_indicator.weekly_pnl.value_pct),
-                );
-                sheet.set_value(
-                    1 + i as u32,
-                    11,
-                    percent!(position_indicator.monthly_pnl.value_pct),
-                );
-                sheet.set_value(
-                    1 + i as u32,
-                    12,
-                    percent!(position_indicator.yearly_pnl.value_pct),
-                );
-                sheet.set_value(
-                    1 + i as u32,
-                    13,
-                    currency!(
-                        &position_indicator.instrument.currency.name,
-                        position_indicator.current_pnl.value
-                    ),
-                );
-                sheet.set_value(
-                    1 + i as u32,
-                    14,
-                    currency!(
-                        &position_indicator.instrument.currency.name,
-                        position_indicator.daily_pnl.value
-                    ),
-                );
-                sheet.set_value(
-                    1 + i as u32,
-                    15,
-                    currency!(
-                        &position_indicator.instrument.currency.name,
-                        position_indicator.weekly_pnl.value
-                    ),
-                );
-                sheet.set_value(
-                    1 + i as u32,
-                    16,
-                    currency!(
-                        &position_indicator.instrument.currency.name,
-                        position_indicator.monthly_pnl.value
-                    ),
-                );
-                sheet.set_value(
-                    1 + i as u32,
-                    17,
-                    currency!(
-                        &position_indicator.instrument.currency.name,
-                        position_indicator.yearly_pnl.value
-                    ),
-                );
-                sheet.set_value(
-                    1 + i as u32,
-                    18,
-                    currency!(
-                        &position_indicator.instrument.currency.name,
-                        position_indicator.earning
-                    ),
-                );
-                sheet.set_value(
-                    1 + i as u32,
-                    19,
-                    currency!(
-                        &position_indicator.instrument.currency.name,
-                        position_indicator.earning_latent
-                    ),
-                );
-                i += 1;
-            }
+        for (i, position_indicator) in self
+            .indicators
+            .by_instrument_name(instrument_name)
+            .iter()
+            .enumerate()
+        {
+            sheet.set_value(1 + i as u32, 0, position_indicator.date);
+            sheet.set_value(1 + i as u32, 1, position_indicator.spot.close());
+            sheet.set_value(1 + i as u32, 2, position_indicator.quantity);
+            sheet.set_value(
+                1 + i as u32,
+                3,
+                currency!(
+                    &position_indicator.instrument.currency.name,
+                    position_indicator.unit_price
+                ),
+            );
+            sheet.set_value(
+                1 + i as u32,
+                4,
+                currency!(
+                    &position_indicator.instrument.currency.name,
+                    position_indicator.valuation
+                ),
+            );
+            sheet.set_value(
+                1 + i as u32,
+                5,
+                currency!(
+                    &position_indicator.instrument.currency.name,
+                    position_indicator.nominal
+                ),
+            );
+            sheet.set_value(
+                1 + i as u32,
+                6,
+                currency!(
+                    &position_indicator.instrument.currency.name,
+                    position_indicator.dividends
+                ),
+            );
+            sheet.set_value(
+                1 + i as u32,
+                7,
+                currency!(
+                    &position_indicator.instrument.currency.name,
+                    position_indicator.tax
+                ),
+            );
+            sheet.set_value(
+                1 + i as u32,
+                8,
+                percent!(position_indicator.current_pnl.value_pct),
+            );
+            sheet.set_value(
+                1 + i as u32,
+                9,
+                percent!(position_indicator.daily_pnl.value_pct),
+            );
+            sheet.set_value(
+                1 + i as u32,
+                10,
+                percent!(position_indicator.weekly_pnl.value_pct),
+            );
+            sheet.set_value(
+                1 + i as u32,
+                11,
+                percent!(position_indicator.monthly_pnl.value_pct),
+            );
+            sheet.set_value(
+                1 + i as u32,
+                12,
+                percent!(position_indicator.yearly_pnl.value_pct),
+            );
+            sheet.set_value(
+                1 + i as u32,
+                13,
+                currency!(
+                    &position_indicator.instrument.currency.name,
+                    position_indicator.current_pnl.value
+                ),
+            );
+            sheet.set_value(
+                1 + i as u32,
+                14,
+                currency!(
+                    &position_indicator.instrument.currency.name,
+                    position_indicator.daily_pnl.value
+                ),
+            );
+            sheet.set_value(
+                1 + i as u32,
+                15,
+                currency!(
+                    &position_indicator.instrument.currency.name,
+                    position_indicator.weekly_pnl.value
+                ),
+            );
+            sheet.set_value(
+                1 + i as u32,
+                16,
+                currency!(
+                    &position_indicator.instrument.currency.name,
+                    position_indicator.monthly_pnl.value
+                ),
+            );
+            sheet.set_value(
+                1 + i as u32,
+                17,
+                currency!(
+                    &position_indicator.instrument.currency.name,
+                    position_indicator.yearly_pnl.value
+                ),
+            );
+            sheet.set_value(
+                1 + i as u32,
+                18,
+                currency!(
+                    &position_indicator.instrument.currency.name,
+                    position_indicator.earning
+                ),
+            );
+            sheet.set_value(
+                1 + i as u32,
+                19,
+                currency!(
+                    &position_indicator.instrument.currency.name,
+                    position_indicator.earning_latent
+                ),
+            );
         }
 
         self.add_sheet(sheet);
@@ -430,7 +427,7 @@ impl<'a> Output for OdsOutput<'a> {
     fn write_indicators(&mut self) -> Result<(), Error> {
         self.write_position_indicators()?;
 
-        for instrument_name in self.portfolio.get_instrument_name_list().iter() {
+        for instrument_name in self.portfolio.get_instrument_name_list() {
             self.write_position_instrument_indicators(instrument_name)?;
         }
 

@@ -68,40 +68,34 @@ impl<'a> CsvOutput<'a> {
         output_stream.write_all(
           "Date;Instrument;Spot(Close);Quantity;Unit Price;Valuation;Nominal;Dividends;Tax;P&L(%);P&L Daily(%);P&L Weekly(%);P&L Monthly(%);P&L Yearly(%);P&L;P&L Daily;P&L Weekly;P&L Monthly;P&L Yearly;Earning;Earning + Valuation\n".as_bytes(),
       )?;
-        for portfolio_indicator in self.indicators.portfolios.iter() {
-            if let Some(position_indicator) = portfolio_indicator
-                .positions
-                .iter()
-                .find(|item| item.instrument.name == instrument_name)
-            {
-                output_stream.write_all(
-                    format!(
-                        "{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{}\n",
-                        portfolio_indicator.date.format("%Y-%m-%d"),
-                        instrument_name,
-                        position_indicator.spot.close(),
-                        position_indicator.quantity,
-                        position_indicator.unit_price,
-                        position_indicator.valuation,
-                        position_indicator.nominal,
-                        position_indicator.dividends,
-                        position_indicator.tax,
-                        position_indicator.current_pnl.value_pct,
-                        position_indicator.daily_pnl.value_pct,
-                        position_indicator.weekly_pnl.value_pct,
-                        position_indicator.monthly_pnl.value_pct,
-                        position_indicator.yearly_pnl.value_pct,
-                        position_indicator.current_pnl.value,
-                        position_indicator.daily_pnl.value,
-                        position_indicator.weekly_pnl.value,
-                        position_indicator.monthly_pnl.value,
-                        position_indicator.yearly_pnl.value,
-                        position_indicator.earning,
-                        position_indicator.earning_latent,
-                    )
-                    .as_bytes(),
-                )?;
-            }
+        for position_indicator in self.indicators.by_instrument_name(instrument_name) {
+            output_stream.write_all(
+                format!(
+                    "{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{}\n",
+                    position_indicator.date.format("%Y-%m-%d"),
+                    instrument_name,
+                    position_indicator.spot.close(),
+                    position_indicator.quantity,
+                    position_indicator.unit_price,
+                    position_indicator.valuation,
+                    position_indicator.nominal,
+                    position_indicator.dividends,
+                    position_indicator.tax,
+                    position_indicator.current_pnl.value_pct,
+                    position_indicator.daily_pnl.value_pct,
+                    position_indicator.weekly_pnl.value_pct,
+                    position_indicator.monthly_pnl.value_pct,
+                    position_indicator.yearly_pnl.value_pct,
+                    position_indicator.current_pnl.value,
+                    position_indicator.daily_pnl.value,
+                    position_indicator.weekly_pnl.value,
+                    position_indicator.monthly_pnl.value,
+                    position_indicator.yearly_pnl.value,
+                    position_indicator.earning,
+                    position_indicator.earning_latent,
+                )
+                .as_bytes(),
+            )?;
         }
         Ok(())
     }
@@ -112,7 +106,7 @@ impl<'a> Output for CsvOutput<'a> {
         let filename = format!("{}/indicators_{}.csv", self.output_dir, self.portfolio.name);
         self.write_position_indicators(&filename)?;
 
-        for instrument_name in self.portfolio.get_instrument_name_list().iter() {
+        for instrument_name in self.portfolio.get_instrument_name_list() {
             let filename = format!(
                 "{}/indicators_{}_{}.csv",
                 self.output_dir, self.portfolio.name, instrument_name

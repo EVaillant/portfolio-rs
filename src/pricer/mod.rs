@@ -51,6 +51,17 @@ impl PortfolioIndicators {
         Ok(PortfolioIndicators { portfolios })
     }
 
+    pub fn by_instrument_name(&self, instrument_name: &str) -> Vec<&PositionIndicator> {
+        self.portfolios
+            .iter()
+            .flat_map(|item| {
+                item.positions
+                    .iter()
+                    .find(|ooo| ooo.instrument.name == instrument_name)
+            })
+            .collect()
+    }
+
     fn make_portfolios_<P>(
         portfolio: &Portfolio,
         begin: Date,

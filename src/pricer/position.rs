@@ -9,6 +9,7 @@ use std::rc::Rc;
 use log::debug;
 
 pub struct PositionIndicator {
+    pub date: Date,
     pub spot: DataFrame,
     pub instrument: Rc<Instrument>,
     pub quantity: f64,
@@ -101,6 +102,7 @@ impl PositionIndicator {
         let earning_latent = earning + valuation;
 
         PositionIndicator {
+            date,
             spot: *spot,
             instrument: position.instrument.clone(),
             quantity,
