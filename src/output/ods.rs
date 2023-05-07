@@ -265,7 +265,7 @@ impl<'a> OdsOutput<'a> {
                 sheet,
                 1 + i,
                 4,
-                position_indicator.instrument,
+                position_indicator.instrument.currency,
                 position_indicator
             );
         }
