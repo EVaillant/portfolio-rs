@@ -8,6 +8,91 @@ use spreadsheet_ods::{
     WorkBook,
 };
 
+macro_rules! update_sheet_with_indicator {
+    ($sheet:ident, $row:expr, $col:expr, $currency:expr, $indicator:expr) => {
+        $sheet.set_value(
+            $row as u32,
+            $col as u32,
+            currency!(&$currency.name, $indicator.valuation),
+        );
+        $sheet.set_value(
+            $row as u32,
+            $col + 1 as u32,
+            currency!(&$currency.name, $indicator.nominal),
+        );
+        $sheet.set_value(
+            $row as u32,
+            $col + 2 as u32,
+            currency!(&$currency.name, $indicator.dividends),
+        );
+        $sheet.set_value(
+            $row as u32,
+            $col + 3 as u32,
+            currency!(&$currency.name, $indicator.tax),
+        );
+        $sheet.set_value(
+            $row as u32,
+            $col + 4 as u32,
+            percent!($indicator.current_pnl.value_pct),
+        );
+        $sheet.set_value(
+            $row as u32,
+            $col + 5 as u32,
+            percent!($indicator.daily_pnl.value_pct),
+        );
+        $sheet.set_value(
+            $row as u32,
+            $col + 6 as u32,
+            percent!($indicator.weekly_pnl.value_pct),
+        );
+        $sheet.set_value(
+            $row as u32,
+            $col + 7 as u32,
+            percent!($indicator.monthly_pnl.value_pct),
+        );
+        $sheet.set_value(
+            $row as u32,
+            $col + 8 as u32,
+            percent!($indicator.yearly_pnl.value_pct),
+        );
+        $sheet.set_value(
+            $row as u32,
+            $col + 9 as u32,
+            currency!(&$currency.name, $indicator.current_pnl.value),
+        );
+        $sheet.set_value(
+            $row as u32,
+            $col + 10 as u32,
+            currency!(&$currency.name, $indicator.daily_pnl.value),
+        );
+        $sheet.set_value(
+            $row as u32,
+            $col + 11 as u32,
+            currency!(&$currency.name, $indicator.weekly_pnl.value),
+        );
+        $sheet.set_value(
+            $row as u32,
+            $col + 12 as u32,
+            currency!(&$currency.name, $indicator.monthly_pnl.value),
+        );
+        $sheet.set_value(
+            $row as u32,
+            $col + 13 as u32,
+            currency!(&$currency.name, $indicator.yearly_pnl.value),
+        );
+        $sheet.set_value(
+            $row as u32,
+            $col + 14 as u32,
+            currency!(&$currency.name, $indicator.earning),
+        );
+        $sheet.set_value(
+            $row as u32,
+            $col + 15 as u32,
+            currency!(&$currency.name, $indicator.earning_latent),
+        );
+    };
+}
+
 pub struct OdsOutput<'a> {
     output_filename: String,
     work_book: WorkBook,
@@ -102,103 +187,12 @@ impl<'a> OdsOutput<'a> {
                 1,
                 currency!(&self.portfolio.currency.name, portfolio_indicator.cash),
             );
-            sheet.set_value(
-                1 + i as u32,
+            update_sheet_with_indicator!(
+                sheet,
+                1 + i,
                 2,
-                currency!(&self.portfolio.currency.name, portfolio_indicator.valuation),
-            );
-            sheet.set_value(
-                1 + i as u32,
-                3,
-                currency!(&self.portfolio.currency.name, portfolio_indicator.nominal),
-            );
-            sheet.set_value(
-                1 + i as u32,
-                4,
-                currency!(&self.portfolio.currency.name, portfolio_indicator.dividends),
-            );
-            sheet.set_value(
-                1 + i as u32,
-                5,
-                currency!(&self.portfolio.currency.name, portfolio_indicator.tax),
-            );
-            sheet.set_value(
-                1 + i as u32,
-                6,
-                percent!(portfolio_indicator.current_pnl.value_pct),
-            );
-            sheet.set_value(
-                1 + i as u32,
-                7,
-                percent!(portfolio_indicator.daily_pnl.value_pct),
-            );
-            sheet.set_value(
-                1 + i as u32,
-                8,
-                percent!(portfolio_indicator.weekly_pnl.value_pct),
-            );
-            sheet.set_value(
-                1 + i as u32,
-                9,
-                percent!(portfolio_indicator.monthly_pnl.value_pct),
-            );
-            sheet.set_value(
-                1 + i as u32,
-                10,
-                percent!(portfolio_indicator.yearly_pnl.value_pct),
-            );
-            sheet.set_value(
-                1 + i as u32,
-                11,
-                currency!(
-                    &self.portfolio.currency.name,
-                    portfolio_indicator.current_pnl.value
-                ),
-            );
-            sheet.set_value(
-                1 + i as u32,
-                12,
-                currency!(
-                    &self.portfolio.currency.name,
-                    portfolio_indicator.daily_pnl.value
-                ),
-            );
-            sheet.set_value(
-                1 + i as u32,
-                13,
-                currency!(
-                    &self.portfolio.currency.name,
-                    portfolio_indicator.weekly_pnl.value
-                ),
-            );
-            sheet.set_value(
-                1 + i as u32,
-                14,
-                currency!(
-                    &self.portfolio.currency.name,
-                    portfolio_indicator.monthly_pnl.value
-                ),
-            );
-            sheet.set_value(
-                1 + i as u32,
-                15,
-                currency!(
-                    &self.portfolio.currency.name,
-                    portfolio_indicator.yearly_pnl.value
-                ),
-            );
-            sheet.set_value(
-                1 + i as u32,
-                16,
-                currency!(&self.portfolio.currency.name, portfolio_indicator.earning),
-            );
-            sheet.set_value(
-                1 + i as u32,
-                17,
-                currency!(
-                    &self.portfolio.currency.name,
-                    portfolio_indicator.earning_latent
-                ),
+                self.portfolio.currency,
+                portfolio_indicator
             );
         }
 
@@ -267,118 +261,12 @@ impl<'a> OdsOutput<'a> {
                     position_indicator.unit_price
                 ),
             );
-            sheet.set_value(
-                1 + i as u32,
+            update_sheet_with_indicator!(
+                sheet,
+                1 + i,
                 4,
-                currency!(
-                    &position_indicator.instrument.currency.name,
-                    position_indicator.valuation
-                ),
-            );
-            sheet.set_value(
-                1 + i as u32,
-                5,
-                currency!(
-                    &position_indicator.instrument.currency.name,
-                    position_indicator.nominal
-                ),
-            );
-            sheet.set_value(
-                1 + i as u32,
-                6,
-                currency!(
-                    &position_indicator.instrument.currency.name,
-                    position_indicator.dividends
-                ),
-            );
-            sheet.set_value(
-                1 + i as u32,
-                7,
-                currency!(
-                    &position_indicator.instrument.currency.name,
-                    position_indicator.tax
-                ),
-            );
-            sheet.set_value(
-                1 + i as u32,
-                8,
-                percent!(position_indicator.current_pnl.value_pct),
-            );
-            sheet.set_value(
-                1 + i as u32,
-                9,
-                percent!(position_indicator.daily_pnl.value_pct),
-            );
-            sheet.set_value(
-                1 + i as u32,
-                10,
-                percent!(position_indicator.weekly_pnl.value_pct),
-            );
-            sheet.set_value(
-                1 + i as u32,
-                11,
-                percent!(position_indicator.monthly_pnl.value_pct),
-            );
-            sheet.set_value(
-                1 + i as u32,
-                12,
-                percent!(position_indicator.yearly_pnl.value_pct),
-            );
-            sheet.set_value(
-                1 + i as u32,
-                13,
-                currency!(
-                    &position_indicator.instrument.currency.name,
-                    position_indicator.current_pnl.value
-                ),
-            );
-            sheet.set_value(
-                1 + i as u32,
-                14,
-                currency!(
-                    &position_indicator.instrument.currency.name,
-                    position_indicator.daily_pnl.value
-                ),
-            );
-            sheet.set_value(
-                1 + i as u32,
-                15,
-                currency!(
-                    &position_indicator.instrument.currency.name,
-                    position_indicator.weekly_pnl.value
-                ),
-            );
-            sheet.set_value(
-                1 + i as u32,
-                16,
-                currency!(
-                    &position_indicator.instrument.currency.name,
-                    position_indicator.monthly_pnl.value
-                ),
-            );
-            sheet.set_value(
-                1 + i as u32,
-                17,
-                currency!(
-                    &position_indicator.instrument.currency.name,
-                    position_indicator.yearly_pnl.value
-                ),
-            );
-            sheet.set_value(
-                1 + i as u32,
-                18,
-                currency!(
-                    &position_indicator.instrument.currency.name,
-                    position_indicator.earning
-                ),
-            );
-            sheet.set_value(
-                1 + i as u32,
-                19,
-                currency!(
-                    &position_indicator.instrument.currency.name,
-                    position_indicator.earning_latent
-                ),
+                position_indicator.instrument,
+                position_indicator
             );
         }
 
