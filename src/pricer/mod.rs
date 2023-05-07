@@ -2,6 +2,7 @@ use crate::alias::Date;
 use crate::error::Error;
 use crate::historical::Provider;
 use crate::portfolio::Portfolio;
+use chrono::Datelike;
 
 use log::{debug, info};
 
@@ -11,6 +12,34 @@ mod position;
 
 pub use portfolio::PortfolioIndicator;
 pub use position::PositionIndicator;
+
+fn is_last_day_of_month(date: Date) -> bool {
+    Date::from_ymd_opt(date.year(), date.month(), 1)
+        .and_then(|v| v.checked_add_months(chrono::Months::new(1)))
+        .and_then(|v| v.checked_sub_days(chrono::naive::Days::new(1)))
+        .map_or(false, |v| v == date)
+}
+
+pub struct HeatMapItem {
+    pub date: Date,
+    pub value: f64,
+}
+
+impl HeatMapItem {
+    pub fn new(date: Date, value: f64) -> Self {
+        Self { date, value }
+    }
+
+    #[inline]
+    pub fn date(&self) -> &Date {
+        &self.date
+    }
+
+    #[inline]
+    pub fn value(&self) -> &f64 {
+        &self.value
+    }
+}
 
 pub struct PortfolioIndicators {
     pub portfolios: Vec<PortfolioIndicator>,
@@ -59,6 +88,40 @@ impl PortfolioIndicators {
                     .iter()
                     .find(|ooo| ooo.instrument.name == instrument_name)
             })
+            .collect()
+    }
+
+    pub fn make_heat_map(&self) -> Vec<HeatMapItem> {
+        let mut values = self
+            .portfolios
+            .iter()
+            .filter(|item| is_last_day_of_month(item.date))
+            .collect::<Vec<_>>();
+        if let Some(last) = self.portfolios.last() {
+            if !is_last_day_of_month(last.date) {
+                values.push(last);
+            }
+        }
+        values
+            .iter()
+            .map(|item| HeatMapItem::new(item.date, item.monthly_pnl.value_pct))
+            .collect()
+    }
+
+    pub fn make_instrument_heat_map(&self, instrument_name: &str) -> Vec<HeatMapItem> {
+        let position_by_instrument = self.by_instrument_name(instrument_name);
+        let mut values = position_by_instrument
+            .iter()
+            .filter(|item| is_last_day_of_month(item.date))
+            .collect::<Vec<_>>();
+        if let Some(last) = position_by_instrument.last() {
+            if !is_last_day_of_month(last.date) {
+                values.push(last);
+            }
+        }
+        values
+            .iter()
+            .map(|item| HeatMapItem::new(item.date, item.monthly_pnl.value_pct))
             .collect()
     }
 
