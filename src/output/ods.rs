@@ -4,8 +4,8 @@ use crate::portfolio::Portfolio;
 use crate::pricer::PortfolioIndicators;
 use spreadsheet_ods::format::{FormatNumberStyle, ValueFormatTrait};
 use spreadsheet_ods::{
-    currency, percent, Sheet, Value, ValueFormatCurrency, ValueFormatDateTime, ValueFormatRef,
-    WorkBook,
+    currency, percent, CellStyleRef, Sheet, Value, ValueFormatCurrency, ValueFormatDateTime,
+    ValueFormatRef, WorkBook,
 };
 
 macro_rules! update_sheet_with_indicator {
@@ -140,14 +140,10 @@ impl<'a> OdsOutput<'a> {
             sheet.set_value(0, i as u32, Value::Text(header_name.to_string()));
         }
 
-        let date_format = self.get_date_format("DD/MM/YYYY")?;
-        let date_style = spreadsheet_ods::CellStyle::new("date_style", &date_format);
-        let date_style_ref = self.work_book.add_cellstyle(date_style);
+        let date_style_ref = self.get_date_style("DD/MM/YYYY")?;
         sheet.set_col_cellstyle(0, &date_style_ref);
 
-        let currency_format = self.get_currency_format(&self.portfolio.currency.name)?;
-        let currency_style = spreadsheet_ods::CellStyle::new("currency_style", &currency_format);
-        let currency_style_ref = self.work_book.add_cellstyle(currency_style);
+        let currency_style_ref = self.get_currency_style(&self.portfolio.currency.name)?;
         for i in [1, 2, 3, 4, 5, 11, 12, 13, 14, 15, 16, 17] {
             sheet.set_col_cellstyle(i, &currency_style_ref);
         }
@@ -204,24 +200,25 @@ impl<'a> OdsOutput<'a> {
             sheet.set_value(0, i as u32, Value::Text(header_name.to_string()));
         }
 
-        let date_format = self.get_date_format("DD/MM/YYYY")?;
-        let date_style = spreadsheet_ods::CellStyle::new("date_style", &date_format);
-        let date_style_ref = self.work_book.add_cellstyle(date_style);
+        let date_style_ref = self.get_date_style("DD/MM/YYYY")?;
         sheet.set_col_cellstyle(0, &date_style_ref);
 
-        let currency_format = self.get_currency_format(&self.portfolio.currency.name)?;
-        let currency_style = spreadsheet_ods::CellStyle::new("currency_style", &currency_format);
-        let currency_style_ref = self.work_book.add_cellstyle(currency_style);
-        for i in [1, 3, 4, 5, 6, 7, 13, 14, 15, 16, 17, 18, 19] {
-            sheet.set_col_cellstyle(i, &currency_style_ref);
-        }
-
+        let mut defined_currency_col = false;
         for (i, position_indicator) in self
             .indicators
             .by_instrument_name(instrument_name)
             .iter()
             .enumerate()
         {
+            if !defined_currency_col {
+                let currency_style_ref =
+                    self.get_currency_style(&position_indicator.instrument.currency.name)?;
+                for i in [1, 3, 4, 5, 6, 7, 13, 14, 15, 16, 17, 18, 19] {
+                    sheet.set_col_cellstyle(i, &currency_style_ref);
+                }
+                defined_currency_col = true;
+            }
+
             sheet.set_value(1 + i as u32, 0, position_indicator.date);
             sheet.set_value(1 + i as u32, 1, position_indicator.spot.close());
             sheet.set_value(1 + i as u32, 2, position_indicator.quantity);
@@ -280,6 +277,30 @@ impl<'a> OdsOutput<'a> {
             return Ok(self.work_book.add_datetime_format(v));
         }
         Err(Error::new_output(format!("unsupported date format {name}")))
+    }
+
+    fn get_date_style(&mut self, date_format: &str) -> Result<CellStyleRef, Error> {
+        let style_name = format!("date_style_{}", date_format);
+        if let Some(value) = self.work_book.cellstyle(&style_name) {
+            return Ok(value.style_ref());
+        }
+
+        let value_format_ref = self.get_date_format(date_format)?;
+        let date_style = spreadsheet_ods::CellStyle::new(&style_name, &value_format_ref);
+        let date_style_ref = self.work_book.add_cellstyle(date_style);
+        Ok(date_style_ref)
+    }
+
+    fn get_currency_style(&mut self, currency_name: &str) -> Result<CellStyleRef, Error> {
+        let style_name = format!("currency_style_{}", currency_name);
+        if let Some(value) = self.work_book.cellstyle(&style_name) {
+            return Ok(value.style_ref());
+        }
+
+        let value_format_ref = self.get_currency_format(currency_name)?;
+        let currency_style = spreadsheet_ods::CellStyle::new(&style_name, &value_format_ref);
+        let currency_style_ref = self.work_book.add_cellstyle(currency_style);
+        Ok(currency_style_ref)
     }
 }
 
