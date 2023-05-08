@@ -82,12 +82,12 @@ impl<'a> CsvOutput<'a> {
     fn write_position_indicators(&self, filename: &str) -> Result<(), Error> {
         let mut output_stream = File::create(filename)?;
         output_stream.write_all(
-            "Date;Cash;Valuation;Nominal;Dividends;Tax;P&L(%);P&L Daily(%);P&L Weekly(%),P&L Monthly(%);P&L Yearly(%);P&L;P&L Daily;P&L Weekly;P&L Monthly;P&L Yearly;Earning;Earning + Valuation\n".as_bytes(),
+            "Date;Cash;Valuation;Nominal;Dividends;Tax;P&L(%);P&L Daily(%);P&L Weekly(%),P&L Monthly(%);P&L Yearly(%);P&L for 3 Months(%);P&L for one Year(%);P&L;P&L Daily;P&L Weekly;P&L Monthly;P&L Yearly;P&L for 3 Months;P&L for one Year;Earning;Earning + Valuation\n".as_bytes(),
         )?;
         for portfolio_indicator in self.indicators.portfolios.iter() {
             output_stream.write_all(
                 format!(
-                    "{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{}\n",
+                    "{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{}\n",
                     portfolio_indicator.date.format("%Y-%m-%d"),
                     portfolio_indicator.cash,
                     portfolio_indicator.valuation,
@@ -99,11 +99,15 @@ impl<'a> CsvOutput<'a> {
                     portfolio_indicator.weekly_pnl.value_pct,
                     portfolio_indicator.monthly_pnl.value_pct,
                     portfolio_indicator.yearly_pnl.value_pct,
+                    portfolio_indicator.for_3_months_pnl.value_pct,
+                    portfolio_indicator.for_1_year_pnl.value_pct,
                     portfolio_indicator.current_pnl.value,
                     portfolio_indicator.daily_pnl.value,
                     portfolio_indicator.weekly_pnl.value,
                     portfolio_indicator.monthly_pnl.value,
                     portfolio_indicator.yearly_pnl.value,
+                    portfolio_indicator.for_3_months_pnl.value,
+                    portfolio_indicator.for_1_year_pnl.value,
                     portfolio_indicator.earning,
                     portfolio_indicator.earning_latent
                 )
@@ -120,12 +124,12 @@ impl<'a> CsvOutput<'a> {
     ) -> Result<(), Error> {
         let mut output_stream = File::create(filename)?;
         output_stream.write_all(
-          "Date;Instrument;Spot(Close);Quantity;Unit Price;Valuation;Nominal;Dividends;Tax;P&L(%);P&L Daily(%);P&L Weekly(%);P&L Monthly(%);P&L Yearly(%);P&L;P&L Daily;P&L Weekly;P&L Monthly;P&L Yearly;Earning;Earning + Valuation\n".as_bytes(),
+          "Date;Instrument;Spot(Close);Quantity;Unit Price;Valuation;Nominal;Dividends;Tax;P&L(%);P&L Daily(%);P&L Weekly(%);P&L Monthly(%);P&L Yearly(%);P&L for 3 Months(%);P&L for one Year(%);P&L;P&L Daily;P&L Weekly;P&L Monthly;P&L Yearly;P&L for 3 Months;P&L for one Year;Earning;Earning + Valuation\n".as_bytes(),
       )?;
         for position_indicator in self.indicators.by_instrument_name(instrument_name) {
             output_stream.write_all(
                 format!(
-                    "{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{}\n",
+                    "{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{}\n",
                     position_indicator.date.format("%Y-%m-%d"),
                     instrument_name,
                     position_indicator.spot.close(),
@@ -140,11 +144,15 @@ impl<'a> CsvOutput<'a> {
                     position_indicator.weekly_pnl.value_pct,
                     position_indicator.monthly_pnl.value_pct,
                     position_indicator.yearly_pnl.value_pct,
+                    position_indicator.for_3_months_pnl.value_pct,
+                    position_indicator.for_1_year_pnl.value_pct,
                     position_indicator.current_pnl.value,
                     position_indicator.daily_pnl.value,
                     position_indicator.weekly_pnl.value,
                     position_indicator.monthly_pnl.value,
                     position_indicator.yearly_pnl.value,
+                    position_indicator.for_3_months_pnl.value,
+                    position_indicator.for_1_year_pnl.value,
                     position_indicator.earning,
                     position_indicator.earning_latent,
                 )

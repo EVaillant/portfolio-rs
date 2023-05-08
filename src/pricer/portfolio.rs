@@ -18,6 +18,8 @@ pub struct PortfolioIndicator {
     pub weekly_pnl: Pnl,
     pub monthly_pnl: Pnl,
     pub yearly_pnl: Pnl,
+    pub for_3_months_pnl: Pnl,
+    pub for_1_year_pnl: Pnl,
     pub earning: f64,
     pub earning_latent: f64,
     pub cash: f64,
@@ -51,17 +53,24 @@ impl PortfolioIndicator {
             },
         );
 
-        let (current_pnl, daily_pnl, weekly_pnl, monthly_pnl, yearly_pnl) =
-            make_pnls(date, nominal, valuation, |date, delta| {
-                date.checked_sub_days(delta)
-                    .and_then(|previous_day| {
-                        previous_value
-                            .iter()
-                            .rev()
-                            .find(|item| item.date <= previous_day)
-                    })
-                    .map(|item| (item.nominal, item.valuation))
-            });
+        let (
+            current_pnl,
+            daily_pnl,
+            weekly_pnl,
+            monthly_pnl,
+            yearly_pnl,
+            for_3_months_pnl,
+            for_1_year_pnl,
+        ) = make_pnls(date, nominal, valuation, |date, delta| {
+            date.checked_sub_days(delta)
+                .and_then(|previous_day| {
+                    previous_value
+                        .iter()
+                        .rev()
+                        .find(|item| item.date <= previous_day)
+                })
+                .map(|item| (item.nominal, item.valuation))
+        });
 
         let cash = portfolio
             .cash
@@ -88,6 +97,8 @@ impl PortfolioIndicator {
             weekly_pnl,
             monthly_pnl,
             yearly_pnl,
+            for_3_months_pnl,
+            for_1_year_pnl,
             earning,
             earning_latent,
             cash,

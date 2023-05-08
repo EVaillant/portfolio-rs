@@ -48,7 +48,7 @@ pub fn make_pnls<T>(
     nominal: f64,
     valuation: f64,
     get_previous_value: T,
-) -> (Pnl, Pnl, Pnl, Pnl, Pnl)
+) -> (Pnl, Pnl, Pnl, Pnl, Pnl, Pnl, Pnl)
 where
     T: Fn(Date, Days) -> Option<(f64, f64)>,
 {
@@ -86,6 +86,20 @@ where
             &get_previous_value,
         ),
         yearly_pnl.unwrap_or_default(),
+        make_pnl(
+            date,
+            Days::new(3 * 30),
+            nominal,
+            valuation,
+            &get_previous_value,
+        ),
+        make_pnl(
+            date,
+            Days::new(365),
+            nominal,
+            valuation,
+            &get_previous_value,
+        ),
     )
 }
 

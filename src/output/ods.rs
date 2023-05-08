@@ -32,36 +32,56 @@ macro_rules! update_sheet_with_indicator {
         $sheet.set_value(
             $row,
             $col + 9,
-            currency!(&$currency.name, $indicator.current_pnl.value),
+            percent!($indicator.for_3_months_pnl.value_pct),
         );
         $sheet.set_value(
             $row,
             $col + 10,
-            currency!(&$currency.name, $indicator.daily_pnl.value),
+            percent!($indicator.for_1_year_pnl.value_pct),
         );
         $sheet.set_value(
             $row,
             $col + 11,
-            currency!(&$currency.name, $indicator.weekly_pnl.value),
+            currency!(&$currency.name, $indicator.current_pnl.value),
         );
         $sheet.set_value(
             $row,
             $col + 12,
-            currency!(&$currency.name, $indicator.monthly_pnl.value),
+            currency!(&$currency.name, $indicator.daily_pnl.value),
         );
         $sheet.set_value(
             $row,
             $col + 13,
-            currency!(&$currency.name, $indicator.yearly_pnl.value),
+            currency!(&$currency.name, $indicator.weekly_pnl.value),
         );
         $sheet.set_value(
             $row,
             $col + 14,
-            currency!(&$currency.name, $indicator.earning),
+            currency!(&$currency.name, $indicator.monthly_pnl.value),
         );
         $sheet.set_value(
             $row,
             $col + 15,
+            currency!(&$currency.name, $indicator.yearly_pnl.value),
+        );
+        $sheet.set_value(
+            $row,
+            $col + 16,
+            currency!(&$currency.name, $indicator.for_3_months_pnl.value),
+        );
+        $sheet.set_value(
+            $row,
+            $col + 17,
+            currency!(&$currency.name, $indicator.for_1_year_pnl.value),
+        );
+        $sheet.set_value(
+            $row,
+            $col + 18,
+            currency!(&$currency.name, $indicator.earning),
+        );
+        $sheet.set_value(
+            $row,
+            $col + 19,
             currency!(&$currency.name, $indicator.earning_latent),
         );
     };
@@ -128,11 +148,15 @@ impl<'a> OdsOutput<'a> {
             "P&L Weekly(%)",
             "P&L Monthly(%)",
             "P&L Yearly(%)",
+            "P&L for 3 Months(%)",
+            "P&L for one Year(%)",
             "P&L",
             "P&L Daily",
             "P&L Weekly",
             "P&L Monthly",
             "P&L Yearly",
+            "P&L for 3 Months",
+            "P&L for one Year",
             "Earning",
             "Earning + Valuation",
         ]
@@ -146,7 +170,7 @@ impl<'a> OdsOutput<'a> {
         sheet.set_col_cellstyle(0, &date_style_ref);
 
         let currency_style_ref = self.get_currency_style(&self.portfolio.currency.name)?;
-        for i in [1, 2, 3, 4, 5, 11, 12, 13, 14, 15, 16, 17] {
+        for i in [1, 2, 3, 4, 5, 13, 14, 15, 16, 17, 18, 19, 20, 21] {
             sheet.set_col_cellstyle(i, &currency_style_ref);
         }
 
@@ -188,11 +212,15 @@ impl<'a> OdsOutput<'a> {
             "P&L Weekly(%)",
             "P&L Monthly(%)",
             "P&L Yearly(%)",
+            "P&L for 3 Months(%)",
+            "P&L for Year(%)",
             "P&L",
             "P&L Daily",
             "P&L Weekly",
             "P&L Monthly",
             "P&L Yearly",
+            "P&L for 3 Months",
+            "P&L for one Year",
             "Earning",
             "Earning + Valuation",
         ]
@@ -215,7 +243,7 @@ impl<'a> OdsOutput<'a> {
             if !defined_currency_col {
                 let currency_style_ref =
                     self.get_currency_style(&position_indicator.instrument.currency.name)?;
-                for i in [1, 3, 4, 5, 6, 7, 13, 14, 15, 16, 17, 18, 19] {
+                for i in [1, 3, 4, 5, 6, 7, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24] {
                     sheet.set_col_cellstyle(i, &currency_style_ref);
                 }
                 defined_currency_col = true;
@@ -269,13 +297,12 @@ impl<'a> OdsOutput<'a> {
     ) -> Result<u32, Error> {
         sheet.set_value(row, 0, Value::Text(name.to_string()));
         for (i, header_name) in [
-            "Year", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct,", "Nov",
-            "Dec",
+            "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct,", "Nov", "Dec",
         ]
         .iter()
         .enumerate()
         {
-            sheet.set_value(row, i as u32 + 1, Value::Text(header_name.to_string()));
+            sheet.set_value(row, i as u32 + 2, Value::Text(header_name.to_string()));
         }
         row += 1;
 

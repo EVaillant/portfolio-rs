@@ -25,6 +25,8 @@ pub struct PositionIndicator {
     pub weekly_pnl: Pnl,
     pub monthly_pnl: Pnl,
     pub yearly_pnl: Pnl,
+    pub for_3_months_pnl: Pnl,
+    pub for_1_year_pnl: Pnl,
     pub earning: f64,
     pub earning_latent: f64,
 }
@@ -68,24 +70,32 @@ impl PositionIndicator {
             })
             .unwrap_or_else(|| 0.0);
 
-        let (current_pnl, daily_pnl, weekly_pnl, monthly_pnl, yearly_pnl) =
-            make_pnls(date, nominal, valuation, |date, delta| {
-                date.checked_sub_days(delta)
-                    .and_then(|previous_day| {
-                        previous_value.iter().rev().find(|item| {
-                            item.date <= previous_day
-                                && item.positions.iter().any(|item_postion| {
-                                    item_postion.instrument == position.instrument
-                                })
-                        })
+        let (
+            current_pnl,
+            daily_pnl,
+            weekly_pnl,
+            monthly_pnl,
+            yearly_pnl,
+            for_3_months_pnl,
+            for_1_year_pnl,
+        ) = make_pnls(date, nominal, valuation, |date, delta| {
+            date.checked_sub_days(delta)
+                .and_then(|previous_day| {
+                    previous_value.iter().rev().find(|item| {
+                        item.date <= previous_day
+                            && item
+                                .positions
+                                .iter()
+                                .any(|item_postion| item_postion.instrument == position.instrument)
                     })
-                    .and_then(|item| {
-                        item.positions
-                            .iter()
-                            .find(|item_postion| item_postion.instrument == position.instrument)
-                    })
-                    .map(|item| (item.nominal, item.valuation))
-            });
+                })
+                .and_then(|item| {
+                    item.positions
+                        .iter()
+                        .find(|item_postion| item_postion.instrument == position.instrument)
+                })
+                .map(|item| (item.nominal, item.valuation))
+        });
 
         let earning = dividends
             + position
@@ -118,6 +128,8 @@ impl PositionIndicator {
             weekly_pnl,
             monthly_pnl,
             yearly_pnl,
+            for_3_months_pnl,
+            for_1_year_pnl,
             earning,
             earning_latent,
         }
