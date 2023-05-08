@@ -3,6 +3,7 @@ use crate::error::Error;
 use crate::historical::Provider;
 use crate::portfolio::Portfolio;
 use chrono::Datelike;
+use std::collections::BTreeMap;
 
 use log::{debug, info};
 
@@ -21,23 +22,24 @@ fn is_last_day_of_month(date: Date) -> bool {
 }
 
 pub struct HeatMapItem {
-    pub date: Date,
-    pub value: f64,
+    data: [Option<f64>; 12],
 }
 
 impl HeatMapItem {
-    pub fn new(date: Date, value: f64) -> Self {
-        Self { date, value }
+    pub fn new() -> Self {
+        Self {
+            data: Default::default(),
+        }
     }
 
     #[inline]
-    pub fn date(&self) -> &Date {
-        &self.date
+    pub fn data(&self) -> &[Option<f64>; 12] {
+        &self.data
     }
 
     #[inline]
-    pub fn value(&self) -> &f64 {
-        &self.value
+    pub fn update(&mut self, month: usize, value: f64) {
+        self.data[month] = Some(value);
     }
 }
 
@@ -91,7 +93,7 @@ impl PortfolioIndicators {
             .collect()
     }
 
-    pub fn make_heat_map(&self) -> Vec<HeatMapItem> {
+    pub fn make_heat_map(&self) -> BTreeMap<i32, HeatMapItem> {
         let mut values = self
             .portfolios
             .iter()
@@ -102,13 +104,18 @@ impl PortfolioIndicators {
                 values.push(last);
             }
         }
-        values
-            .iter()
-            .map(|item| HeatMapItem::new(item.date, item.monthly_pnl.value_pct))
-            .collect()
+        let mut lines: BTreeMap<i32, HeatMapItem> = Default::default();
+        for item in values {
+            let year = item.date.year();
+            lines
+                .entry(year)
+                .or_insert_with(HeatMapItem::new)
+                .update(item.date.month0() as usize, item.monthly_pnl.value_pct)
+        }
+        lines
     }
 
-    pub fn make_instrument_heat_map(&self, instrument_name: &str) -> Vec<HeatMapItem> {
+    pub fn make_instrument_heat_map(&self, instrument_name: &str) -> BTreeMap<i32, HeatMapItem> {
         let position_by_instrument = self.by_instrument_name(instrument_name);
         let mut values = position_by_instrument
             .iter()
@@ -119,10 +126,15 @@ impl PortfolioIndicators {
                 values.push(last);
             }
         }
-        values
-            .iter()
-            .map(|item| HeatMapItem::new(item.date, item.monthly_pnl.value_pct))
-            .collect()
+        let mut lines: BTreeMap<i32, HeatMapItem> = Default::default();
+        for item in values {
+            let year = item.date.year();
+            lines
+                .entry(year)
+                .or_insert_with(HeatMapItem::new)
+                .update(item.date.month0() as usize, item.monthly_pnl.value_pct)
+        }
+        lines
     }
 
     fn make_portfolios_<P>(

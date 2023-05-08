@@ -1,12 +1,14 @@
 use super::Output;
 use crate::error::Error;
 use crate::portfolio::Portfolio;
-use crate::pricer::PortfolioIndicators;
+use crate::pricer::{HeatMapItem, PortfolioIndicators};
+use log::debug;
 use spreadsheet_ods::format::{FormatNumberStyle, ValueFormatTrait};
 use spreadsheet_ods::{
     currency, percent, CellStyleRef, Sheet, Value, ValueFormatCurrency, ValueFormatDateTime,
     ValueFormatRef, WorkBook,
 };
+use std::collections::BTreeMap;
 
 macro_rules! update_sheet_with_indicator {
     ($sheet:ident, $row:expr, $col:expr, $currency:expr, $indicator:expr) => {
@@ -243,6 +245,53 @@ impl<'a> OdsOutput<'a> {
         Ok(())
     }
 
+    fn write_heat_map(&mut self) -> Result<(), Error> {
+        let mut sheet = Sheet::new("Heat Map");
+
+        let heat_map = self.indicators.make_heat_map();
+        let mut end_row = self.write_heat_map_(&mut sheet, "Portfolio", 0, &heat_map)?;
+
+        for instrument_name in self.portfolio.get_instrument_name_list() {
+            let heat_map = self.indicators.make_instrument_heat_map(instrument_name);
+            end_row = self.write_heat_map_(&mut sheet, instrument_name, end_row + 2, &heat_map)?;
+        }
+
+        self.add_sheet(sheet);
+        Ok(())
+    }
+
+    fn write_heat_map_(
+        &mut self,
+        sheet: &mut Sheet,
+        name: &str,
+        mut row: u32,
+        heat_map: &BTreeMap<i32, HeatMapItem>,
+    ) -> Result<u32, Error> {
+        sheet.set_value(row, 0, Value::Text(name.to_string()));
+        for (i, header_name) in [
+            "Year", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct,", "Nov",
+            "Dec",
+        ]
+        .iter()
+        .enumerate()
+        {
+            sheet.set_value(row, i as u32 + 1, Value::Text(header_name.to_string()));
+        }
+        row += 1;
+
+        for (year, item) in heat_map {
+            sheet.set_value(row, 1, year);
+            for (pos, value) in item.data().iter().enumerate() {
+                if let Some(pct) = value {
+                    sheet.set_value(row, 2 + pos as u32, percent!(*pct));
+                }
+            }
+            row += 1;
+        }
+
+        Ok(row)
+    }
+
     fn get_currency_format(&mut self, name: &str) -> Result<ValueFormatRef, Error> {
         if let Some(value) = self.work_book.currency_format(name) {
             return Ok(value.format_ref());
@@ -306,12 +355,18 @@ impl<'a> OdsOutput<'a> {
 
 impl<'a> Output for OdsOutput<'a> {
     fn write_indicators(&mut self) -> Result<(), Error> {
+        debug!("write heat map");
+        self.write_heat_map()?;
+
+        debug!("write position indicators");
         self.write_position_indicators()?;
 
         for instrument_name in self.portfolio.get_instrument_name_list() {
+            debug!("write position indicators for {}", instrument_name);
             self.write_position_instrument_indicators(instrument_name)?;
         }
 
+        debug!("save");
         self.save()?;
         Ok(())
     }

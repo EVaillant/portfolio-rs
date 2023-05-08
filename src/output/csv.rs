@@ -1,45 +1,25 @@
-use chrono::Datelike;
-
 use super::Output;
 use crate::error::Error;
 use crate::portfolio::Portfolio;
 use crate::pricer::{HeatMapItem, PortfolioIndicators};
-use std::collections::BTreeMap;
 
 use std::fs::File;
 use std::io::Write;
 
-struct HeatMapLine {
-    year: i32,
-    datas: [Option<f64>; 12],
-}
-impl HeatMapLine {
-    pub fn new(year: i32) -> Self {
-        Self {
-            year,
-            datas: Default::default(),
-        }
-    }
-
-    pub fn update(&mut self, item: &HeatMapItem) {
-        self.datas[item.date().month0() as usize] = Some(*item.value());
-    }
-
-    pub fn line(&self) -> String {
-        let str_line = self
-            .datas
-            .iter()
-            .map(|item| {
-                if let Some(v) = item {
-                    (v * 100.0).to_string()
-                } else {
-                    "".to_string()
-                }
-            })
-            .collect::<Vec<_>>()
-            .join(";");
-        format!("{};{}\n", self.year, str_line)
-    }
+fn convert_to_cvs(year: i32, item: &HeatMapItem) -> String {
+    let str_line = item
+        .data()
+        .iter()
+        .map(|item| {
+            if let Some(v) = item {
+                (v * 100.0).to_string()
+            } else {
+                "".to_string()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(";");
+    format!("{};{}\n", year, str_line)
 }
 
 pub struct CsvOutput<'a> {
@@ -66,42 +46,34 @@ impl<'a> CsvOutput<'a> {
         instrument_name: &str,
         filename: &str,
     ) -> Result<(), Error> {
-        let mut lines: BTreeMap<i32, HeatMapLine> = Default::default();
-        for item in self.indicators.make_instrument_heat_map(instrument_name) {
-            let year = item.date().year();
-            lines
-                .entry(year)
-                .or_insert_with(|| HeatMapLine::new(year))
-                .update(&item);
-        }
-
         let mut output_stream = File::create(filename)?;
         output_stream
             .write_all("Year;Jan;Feb;Mar;Apr;May;Jun;Jul;Aug,Sep;Oct;Nov;Dec\n".as_bytes())?;
 
-        for (_, item) in lines {
-            output_stream.write_all(item.line().as_bytes())?;
+        for line in self
+            .indicators
+            .make_instrument_heat_map(instrument_name)
+            .iter()
+            .map(|(year, item)| convert_to_cvs(*year, item))
+        {
+            output_stream.write_all(line.as_bytes())?;
         }
 
         Ok(())
     }
 
     fn write_heat_map(&self, filename: &str) -> Result<(), Error> {
-        let mut lines: BTreeMap<i32, HeatMapLine> = Default::default();
-        for item in self.indicators.make_heat_map() {
-            let year = item.date().year();
-            lines
-                .entry(year)
-                .or_insert_with(|| HeatMapLine::new(year))
-                .update(&item);
-        }
-
         let mut output_stream = File::create(filename)?;
         output_stream
             .write_all("Year;Jan;Feb;Mar;Apr;May;Jun;Jul;Aug,Sep;Oct;Nov;Dec\n".as_bytes())?;
 
-        for (_, item) in lines {
-            output_stream.write_all(item.line().as_bytes())?;
+        for line in self
+            .indicators
+            .make_heat_map()
+            .iter()
+            .map(|(year, item)| convert_to_cvs(*year, item))
+        {
+            output_stream.write_all(line.as_bytes())?;
         }
 
         Ok(())
