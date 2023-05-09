@@ -52,13 +52,13 @@ pub fn make_pnls<T>(
 where
     T: Fn(Date, Days) -> Option<(f64, f64)>,
 {
-    let current_pnl = if valuation == 0.0 {
+    let pnl_current = if valuation == 0.0 {
         Default::default()
     } else {
         Pnl::new(nominal, valuation)
     };
 
-    let yearly_pnl = Date::from_ymd_opt(date.year() - 1, 12, 31).map(|previous_year_date| {
+    let pnl_yearly = Date::from_ymd_opt(date.year() - 1, 12, 31).map(|previous_year_date| {
         make_pnl(
             previous_year_date,
             Days::new(0),
@@ -69,7 +69,7 @@ where
     });
 
     (
-        current_pnl,
+        pnl_current,
         make_pnl(date, Days::new(1), nominal, valuation, &get_previous_value),
         make_pnl(
             date,
@@ -85,7 +85,7 @@ where
             valuation,
             &get_previous_value,
         ),
-        yearly_pnl.unwrap_or_default(),
+        pnl_yearly.unwrap_or_default(),
         make_pnl(
             date,
             Days::new(3 * 30),

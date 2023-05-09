@@ -110,7 +110,7 @@ impl PortfolioIndicators {
             lines
                 .entry(year)
                 .or_insert_with(HeatMapItem::new)
-                .update(item.date.month0() as usize, item.monthly_pnl.value_pct)
+                .update(item.date.month0() as usize, item.pnl_monthly.value_pct)
         }
         lines
     }
@@ -132,7 +132,7 @@ impl PortfolioIndicators {
             lines
                 .entry(year)
                 .or_insert_with(HeatMapItem::new)
-                .update(item.date.month0() as usize, item.monthly_pnl.value_pct)
+                .update(item.date.month0() as usize, item.pnl_monthly.value_pct)
         }
         lines
     }

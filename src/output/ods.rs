@@ -24,55 +24,55 @@ macro_rules! update_sheet_with_indicator {
             currency!(&$currency.name, $indicator.dividends),
         );
         $sheet.set_value($row, $col + 3, currency!(&$currency.name, $indicator.tax));
-        $sheet.set_value($row, $col + 4, percent!($indicator.current_pnl.value_pct));
-        $sheet.set_value($row, $col + 5, percent!($indicator.daily_pnl.value_pct));
-        $sheet.set_value($row, $col + 6, percent!($indicator.weekly_pnl.value_pct));
-        $sheet.set_value($row, $col + 7, percent!($indicator.monthly_pnl.value_pct));
-        $sheet.set_value($row, $col + 8, percent!($indicator.yearly_pnl.value_pct));
+        $sheet.set_value($row, $col + 4, percent!($indicator.pnl_current.value_pct));
+        $sheet.set_value($row, $col + 5, percent!($indicator.pnl_daily.value_pct));
+        $sheet.set_value($row, $col + 6, percent!($indicator.pnl_weekly.value_pct));
+        $sheet.set_value($row, $col + 7, percent!($indicator.pnl_monthly.value_pct));
+        $sheet.set_value($row, $col + 8, percent!($indicator.pnl_yearly.value_pct));
         $sheet.set_value(
             $row,
             $col + 9,
-            percent!($indicator.for_3_months_pnl.value_pct),
+            percent!($indicator.pnl_for_3_months.value_pct),
         );
         $sheet.set_value(
             $row,
             $col + 10,
-            percent!($indicator.for_1_year_pnl.value_pct),
+            percent!($indicator.pnl_for_1_year.value_pct),
         );
         $sheet.set_value(
             $row,
             $col + 11,
-            currency!(&$currency.name, $indicator.current_pnl.value),
+            currency!(&$currency.name, $indicator.pnl_current.value),
         );
         $sheet.set_value(
             $row,
             $col + 12,
-            currency!(&$currency.name, $indicator.daily_pnl.value),
+            currency!(&$currency.name, $indicator.pnl_daily.value),
         );
         $sheet.set_value(
             $row,
             $col + 13,
-            currency!(&$currency.name, $indicator.weekly_pnl.value),
+            currency!(&$currency.name, $indicator.pnl_weekly.value),
         );
         $sheet.set_value(
             $row,
             $col + 14,
-            currency!(&$currency.name, $indicator.monthly_pnl.value),
+            currency!(&$currency.name, $indicator.pnl_monthly.value),
         );
         $sheet.set_value(
             $row,
             $col + 15,
-            currency!(&$currency.name, $indicator.yearly_pnl.value),
+            currency!(&$currency.name, $indicator.pnl_yearly.value),
         );
         $sheet.set_value(
             $row,
             $col + 16,
-            currency!(&$currency.name, $indicator.for_3_months_pnl.value),
+            currency!(&$currency.name, $indicator.pnl_for_3_months.value),
         );
         $sheet.set_value(
             $row,
             $col + 17,
-            currency!(&$currency.name, $indicator.for_1_year_pnl.value),
+            currency!(&$currency.name, $indicator.pnl_for_1_year.value),
         );
         $sheet.set_value(
             $row,
