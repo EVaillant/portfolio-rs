@@ -82,12 +82,12 @@ impl<'a> CsvOutput<'a> {
     fn write_position_indicators(&self, filename: &str) -> Result<(), Error> {
         let mut output_stream = File::create(filename)?;
         output_stream.write_all(
-            "Date;Cash;Valuation;Nominal;Dividends;Tax;P&L(%);P&L Daily(%);P&L Weekly(%),P&L Monthly(%);P&L Yearly(%);P&L for 3 Months(%);P&L for one Year(%);P&L;P&L Daily;P&L Weekly;P&L Monthly;P&L Yearly;P&L for 3 Months;P&L for one Year;Earning;Earning + Valuation\n".as_bytes(),
+            "Date;Cash;Valuation;Nominal;Dividends;Tax;P&L(%);P&L Daily(%);P&L Weekly(%),P&L Monthly(%);P&L Yearly(%);P&L for 3 Months(%);P&L for one Year(%);P&L;P&L Daily;P&L Weekly;P&L Monthly;P&L Yearly;P&L for 3 Months;P&L for one Year;Volatility 3M;Volatility 1Y;Earning;Earning + Valuation\n".as_bytes(),
         )?;
         for portfolio_indicator in self.indicators.portfolios.iter() {
             output_stream.write_all(
                 format!(
-                    "{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{}\n",
+                    "{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{}\n",
                     portfolio_indicator.date.format("%Y-%m-%d"),
                     portfolio_indicator.cash,
                     portfolio_indicator.valuation,
@@ -108,6 +108,8 @@ impl<'a> CsvOutput<'a> {
                     portfolio_indicator.pnl_yearly.value,
                     portfolio_indicator.pnl_for_3_months.value,
                     portfolio_indicator.pnl_for_1_year.value,
+                    portfolio_indicator.volatility_3_month,
+                    portfolio_indicator.volatility_1_year,
                     portfolio_indicator.earning,
                     portfolio_indicator.earning_latent
                 )
@@ -124,12 +126,12 @@ impl<'a> CsvOutput<'a> {
     ) -> Result<(), Error> {
         let mut output_stream = File::create(filename)?;
         output_stream.write_all(
-          "Date;Instrument;Spot(Close);Quantity;Unit Price;Valuation;Nominal;Dividends;Tax;P&L(%);P&L Daily(%);P&L Weekly(%);P&L Monthly(%);P&L Yearly(%);P&L for 3 Months(%);P&L for one Year(%);P&L;P&L Daily;P&L Weekly;P&L Monthly;P&L Yearly;P&L for 3 Months;P&L for one Year;Earning;Earning + Valuation\n".as_bytes(),
+          "Date;Instrument;Spot(Close);Quantity;Unit Price;Valuation;Nominal;Dividends;Tax;P&L(%);P&L Daily(%);P&L Weekly(%);P&L Monthly(%);P&L Yearly(%);P&L for 3 Months(%);P&L for one Year(%);P&L;P&L Daily;P&L Weekly;P&L Monthly;P&L Yearly;P&L for 3 Months;P&L for one Year;Volatility 3M;Volatility 1Y;Earning;Earning + Valuation\n".as_bytes(),
       )?;
         for position_indicator in self.indicators.by_instrument_name(instrument_name) {
             output_stream.write_all(
                 format!(
-                    "{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{}\n",
+                    "{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{}\n",
                     position_indicator.date.format("%Y-%m-%d"),
                     instrument_name,
                     position_indicator.spot.close(),
@@ -153,6 +155,8 @@ impl<'a> CsvOutput<'a> {
                     position_indicator.pnl_yearly.value,
                     position_indicator.pnl_for_3_months.value,
                     position_indicator.pnl_for_1_year.value,
+                    position_indicator.volatility_3_month,
+                    position_indicator.volatility_1_year,
                     position_indicator.earning,
                     position_indicator.earning_latent,
                 )

@@ -1,7 +1,7 @@
 use crate::alias::Date;
 use chrono::Datelike;
 
-pub enum Delay {
+enum Delay {
     Zero,
     Days(chrono::naive::Days),
     Months(chrono::Months),
@@ -158,6 +158,34 @@ where
         } else {
             Pnl::new(current_nominal, current_valuation)
         }
+    } else {
+        Default::default()
+    }
+}
+
+pub fn make_volatilities<T>(date: Date, get_previous_value: T) -> (f64, f64)
+where
+    T: Fn(Date) -> Vec<f64>,
+{
+    (
+        make_volatility(date, Delay::months(3), &get_previous_value),
+        make_volatility(date, Delay::months(12), &get_previous_value),
+    )
+}
+
+fn make_volatility<T>(date: Date, delay: Delay, get_previous_value: &T) -> f64
+where
+    T: Fn(Date) -> Vec<f64>,
+{
+    if let Some(previous_date) = delay.sub(&date) {
+        let values = get_previous_value(previous_date);
+        let size = values.len() as f64;
+        let avg = values.iter().sum::<f64>() / size;
+        values
+            .iter()
+            .map(|value| (value - avg) * (value - avg) / size)
+            .sum::<f64>()
+            .sqrt()
     } else {
         Default::default()
     }

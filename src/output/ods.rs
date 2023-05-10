@@ -74,14 +74,16 @@ macro_rules! update_sheet_with_indicator {
             $col + 17,
             currency!(&$currency.name, $indicator.pnl_for_1_year.value),
         );
+        $sheet.set_value($row, $col + 18, $indicator.volatility_3_month);
+        $sheet.set_value($row, $col + 19, $indicator.volatility_1_year);
         $sheet.set_value(
             $row,
-            $col + 18,
+            $col + 20,
             currency!(&$currency.name, $indicator.earning),
         );
         $sheet.set_value(
             $row,
-            $col + 19,
+            $col + 21,
             currency!(&$currency.name, $indicator.earning_latent),
         );
     };
@@ -157,6 +159,8 @@ impl<'a> OdsOutput<'a> {
             "P&L Yearly",
             "P&L for 3 Months",
             "P&L for one Year",
+            "Volatility 3M",
+            "Volatility 1Y",
             "Earning",
             "Earning + Valuation",
         ]
@@ -170,7 +174,7 @@ impl<'a> OdsOutput<'a> {
         sheet.set_col_cellstyle(0, &date_style_ref);
 
         let currency_style_ref = self.get_currency_style(&self.portfolio.currency.name)?;
-        for i in [1, 2, 3, 4, 5, 13, 14, 15, 16, 17, 18, 19, 20, 21] {
+        for i in [1, 2, 3, 4, 5, 13, 14, 15, 16, 17, 18, 19, 22, 23] {
             sheet.set_col_cellstyle(i, &currency_style_ref);
         }
 
@@ -221,6 +225,8 @@ impl<'a> OdsOutput<'a> {
             "P&L Yearly",
             "P&L for 3 Months",
             "P&L for one Year",
+            "Volatility 3M",
+            "Volatility 1Y",
             "Earning",
             "Earning + Valuation",
         ]
@@ -243,7 +249,7 @@ impl<'a> OdsOutput<'a> {
             if !defined_currency_col {
                 let currency_style_ref =
                     self.get_currency_style(&position_indicator.instrument.currency.name)?;
-                for i in [1, 3, 4, 5, 6, 7, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24] {
+                for i in [1, 3, 4, 5, 6, 7, 15, 16, 17, 18, 19, 20, 21, 24, 25] {
                     sheet.set_col_cellstyle(i, &currency_style_ref);
                 }
                 defined_currency_col = true;

@@ -1,5 +1,5 @@
 use super::position::PositionIndicator;
-use super::tools::{make_pnls, Pnl};
+use super::tools::{make_pnls, make_volatilities, Pnl};
 use crate::alias::Date;
 use crate::historical::Provider;
 use crate::portfolio::{CashVariationSource, Portfolio};
@@ -20,6 +20,8 @@ pub struct PortfolioIndicator {
     pub pnl_yearly: Pnl,
     pub pnl_for_3_months: Pnl,
     pub pnl_for_1_year: Pnl,
+    pub volatility_3_month: f64,
+    pub volatility_1_year: f64,
     pub earning: f64,
     pub earning_latent: f64,
     pub cash: f64,
@@ -69,6 +71,16 @@ impl PortfolioIndicator {
                 .map(|item| (item.nominal, item.valuation))
         });
 
+        let (volatility_3_month, volatility_1_year) = make_volatilities(date, |date| {
+            let mut ret = previous_value
+                .iter()
+                .filter(|item| item.date >= date)
+                .map(|item| item.pnl_current.value_pct)
+                .collect::<Vec<_>>();
+            ret.push(pnl_current.value_pct);
+            ret
+        });
+
         let cash = portfolio
             .cash
             .iter()
@@ -96,6 +108,8 @@ impl PortfolioIndicator {
             pnl_yearly,
             pnl_for_3_months,
             pnl_for_1_year,
+            volatility_3_month,
+            volatility_1_year,
             earning,
             earning_latent,
             cash,

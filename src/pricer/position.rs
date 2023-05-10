@@ -1,4 +1,4 @@
-use super::tools::{make_pnls, Pnl};
+use super::tools::{make_pnls, make_volatilities, Pnl};
 use super::PortfolioIndicator;
 use crate::alias::Date;
 use crate::historical::DataFrame;
@@ -27,6 +27,8 @@ pub struct PositionIndicator {
     pub pnl_yearly: Pnl,
     pub pnl_for_3_months: Pnl,
     pub pnl_for_1_year: Pnl,
+    pub volatility_3_month: f64,
+    pub volatility_1_year: f64,
     pub earning: f64,
     pub earning_latent: f64,
 }
@@ -97,6 +99,22 @@ impl PositionIndicator {
                 .map(|item| (item.nominal, item.valuation))
         });
 
+        let (volatility_3_month, volatility_1_year) = make_volatilities(date, |date| {
+            let mut ret = previous_value
+                .iter()
+                .filter(|item| item.date >= date)
+                .map(|item| {
+                    item.positions
+                        .iter()
+                        .find(|item_position| item_position.instrument == position.instrument)
+                })
+                .filter(Option::is_some)
+                .map(|item| item.unwrap().pnl_current.value_pct)
+                .collect::<Vec<_>>();
+            ret.push(pnl_current.value_pct);
+            ret
+        });
+
         let earning = dividends
             + position
                 .trades
@@ -130,6 +148,8 @@ impl PositionIndicator {
             pnl_yearly,
             pnl_for_3_months,
             pnl_for_1_year,
+            volatility_3_month,
+            volatility_1_year,
             earning,
             earning_latent,
         }
