@@ -1,4 +1,4 @@
-use super::pnl::{make_pnls, Pnl};
+use super::tools::{make_pnls, Pnl};
 use super::PortfolioIndicator;
 use crate::alias::Date;
 use crate::historical::DataFrame;
@@ -78,16 +78,16 @@ impl PositionIndicator {
             pnl_yearly,
             pnl_for_3_months,
             pnl_for_1_year,
-        ) = make_pnls(date, nominal, valuation, |date, delta| {
-            date.checked_sub_days(delta)
-                .and_then(|previous_day| {
-                    previous_value.iter().rev().find(|item| {
-                        item.date <= previous_day
-                            && item
-                                .positions
-                                .iter()
-                                .any(|item_postion| item_postion.instrument == position.instrument)
-                    })
+        ) = make_pnls(date, nominal, valuation, |date| {
+            previous_value
+                .iter()
+                .rev()
+                .find(|item| {
+                    item.date <= date
+                        && item
+                            .positions
+                            .iter()
+                            .any(|item_postion| item_postion.instrument == position.instrument)
                 })
                 .and_then(|item| {
                     item.positions

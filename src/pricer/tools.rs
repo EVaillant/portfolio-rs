@@ -1,6 +1,32 @@
 use crate::alias::Date;
-use chrono::naive::Days;
 use chrono::Datelike;
+
+pub enum Delay {
+    Zero,
+    Days(chrono::naive::Days),
+    Months(chrono::Months),
+}
+
+impl Delay {
+    pub fn zero() -> Self {
+        Self::Zero
+    }
+    pub fn days(num: u64) -> Self {
+        Self::Days(chrono::naive::Days::new(num))
+    }
+
+    pub fn months(num: u32) -> Self {
+        Self::Months(chrono::Months::new(num))
+    }
+
+    pub fn sub(&self, date: &Date) -> Option<Date> {
+        match self {
+            Self::Zero => Some(*date),
+            Self::Days(delay) => date.checked_sub_days(*delay),
+            Self::Months(delay) => date.checked_sub_months(*delay),
+        }
+    }
+}
 
 pub struct Pnl {
     pub value: f64,
@@ -50,7 +76,7 @@ pub fn make_pnls<T>(
     get_previous_value: T,
 ) -> (Pnl, Pnl, Pnl, Pnl, Pnl, Pnl, Pnl)
 where
-    T: Fn(Date, Days) -> Option<(f64, f64)>,
+    T: Fn(Date) -> Option<(f64, f64)>,
 {
     let pnl_current = if valuation == 0.0 {
         Default::default()
@@ -61,7 +87,7 @@ where
     let pnl_yearly = Date::from_ymd_opt(date.year() - 1, 12, 31).map(|previous_year_date| {
         make_pnl(
             previous_year_date,
-            Days::new(0),
+            Delay::zero(),
             nominal,
             valuation,
             &get_previous_value,
@@ -70,17 +96,23 @@ where
 
     (
         pnl_current,
-        make_pnl(date, Days::new(1), nominal, valuation, &get_previous_value),
         make_pnl(
             date,
-            Days::new((date.weekday().num_days_from_monday() + 1) as u64),
+            Delay::days(1),
             nominal,
             valuation,
             &get_previous_value,
         ),
         make_pnl(
             date,
-            Days::new(date.day() as u64),
+            Delay::days((date.weekday().num_days_from_monday() + 1) as u64),
+            nominal,
+            valuation,
+            &get_previous_value,
+        ),
+        make_pnl(
+            date,
+            Delay::days(date.day() as u64),
             nominal,
             valuation,
             &get_previous_value,
@@ -88,14 +120,14 @@ where
         pnl_yearly.unwrap_or_default(),
         make_pnl(
             date,
-            Days::new(3 * 30),
+            Delay::months(3),
             nominal,
             valuation,
             &get_previous_value,
         ),
         make_pnl(
             date,
-            Days::new(365),
+            Delay::months(12),
             nominal,
             valuation,
             &get_previous_value,
@@ -105,24 +137,28 @@ where
 
 fn make_pnl<T>(
     date: Date,
-    delta: Days,
+    delay: Delay,
     current_nominal: f64,
     current_valuation: f64,
     get_previous_value: &T,
 ) -> Pnl
 where
-    T: Fn(Date, Days) -> Option<(f64, f64)>,
+    T: Fn(Date) -> Option<(f64, f64)>,
 {
     if current_valuation == 0.0 {
         Default::default()
-    } else if let Some((previous_nominal, previous_valuation)) = get_previous_value(date, delta) {
-        Pnl::relative(
-            previous_nominal,
-            previous_valuation,
-            current_nominal,
-            current_valuation,
-        )
+    } else if let Some(previous_date) = delay.sub(&date) {
+        if let Some((previous_nominal, previous_valuation)) = get_previous_value(previous_date) {
+            Pnl::relative(
+                previous_nominal,
+                previous_valuation,
+                current_nominal,
+                current_valuation,
+            )
+        } else {
+            Pnl::new(current_nominal, current_valuation)
+        }
     } else {
-        Pnl::new(current_nominal, current_valuation)
+        Default::default()
     }
 }
