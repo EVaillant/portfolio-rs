@@ -1,7 +1,10 @@
 {
   "name" : "HLT",
+  "isin" : "LU1834986900",
   "description" : "Lyxor STOXX Europe 600 Healthcare UCITS ETF - Acc",
   "market" : "EPA",
   "currency" : "EUR",
+  "region" : "Europe",
+  "fund_category" : "Equity Sector - Health Care",
   "ticker_yahoo" : "HLT.PA"
 }

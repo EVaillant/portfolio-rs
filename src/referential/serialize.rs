@@ -325,17 +325,23 @@ impl Deserialize for Instrument {
         D: Deserializer,
     {
         let name = deserializer.read("name")?;
+        let isin = deserializer.read("isin")?;
         let description = deserializer.read("description")?;
         let market = deserializer.resolv_market("market")?;
         let currency = deserializer.resolv_currency("currency")?;
         let ticker_yahoo = deserializer.read_option("ticker_yahoo")?;
+        let region = deserializer.read("region")?;
+        let fund_category = deserializer.read("fund_category")?;
         let dividends = deserializer.read_option("dividends")?;
         Ok(Instrument {
             name,
+            isin,
             description,
             market,
             currency,
             ticker_yahoo,
+            region,
+            fund_category,
             dividends,
         })
     }

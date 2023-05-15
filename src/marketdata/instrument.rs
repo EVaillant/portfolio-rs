@@ -5,10 +5,13 @@ use std::rc::Rc;
 #[derive(Debug)]
 pub struct Instrument {
     pub name: String,
+    pub isin: String,
     pub description: String,
     pub market: Rc<Market>,
     pub currency: Rc<Currency>,
     pub ticker_yahoo: Option<String>,
+    pub region: String,
+    pub fund_category: String,
     pub dividends: Option<Vec<Dividend>>,
 }
 

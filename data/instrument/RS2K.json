@@ -1,7 +1,10 @@
 {
   "name" : "RS2K",
+  "isin" : "LU1681038672",
   "description" : "Amundi Russell 2000 UCITS ETF - EUR (C)",
   "market" : "EPA",
   "currency" : "EUR",
+  "region" : "North America",
+  "fund_category" : "Equity US - Small & Mid Caps",
   "ticker_yahoo" : "RS2K.PA"
 }

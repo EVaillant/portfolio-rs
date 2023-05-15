@@ -1,7 +1,10 @@
 {
   "name" : "ESE",
+  "isin" : "FR0011550185",
   "description" : "BNP Paribas Easy S&P 500 UCITS ETF EUR C",
   "market" : "EPA",
   "currency" : "EUR",
+  "region" : "North America",
+  "fund_category" : "Equity US",
   "ticker_yahoo" : "ESE.PA"
 }

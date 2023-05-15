@@ -1,7 +1,10 @@
 {
   "name" : "AXA PEA Regularite C",
+  "isin" : "FR0000447039",
   "description" : "AXA PEA Regularite C",
   "market" : "EPA",
   "currency" : "EUR",
+  "region" : "Europe",
+  "fund_category" : "Money Market - EUR",
   "ticker_yahoo" : "0P00000T0T.F"
 }

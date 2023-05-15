@@ -1,7 +1,10 @@
 {
   "name" : "PAEEM",
+  "isin" : "FR0013412020",
   "description" : "Amundi ETF PEA MSCI Emerg Mkts UCITS ETF EUR C/D",
   "market" : "EPA",
   "currency" : "EUR",
+  "region" : "Emerging Markets",
+  "fund_category" : "Equity Emerging Markets - Global",
   "ticker_yahoo" : "PAEEM.PA"
 }

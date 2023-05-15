@@ -1,7 +1,10 @@
 {
   "name" : "ETZ",
+  "isin" : "FR0011550193",
   "description" : "BNP Paribas Easy Stoxx Europe 600 UCITS ETF C",
   "market" : "EPA",
   "currency" : "EUR",
+  "region" : "Europe",
+  "fund_category" : "Equity Europe",
   "ticker_yahoo" : "ETZ.PA"
 }

@@ -1,7 +1,10 @@
 {
   "name" : "C40",
+  "isin" : "LU1681046931",
   "description" : "Amundi CAC 40 ESG UCITS ETF DR - EUR A",
   "market" : "EPA",
   "currency" : "EUR",
+  "region" : "Europe",
+  "fund_category" : "Equity France",
   "ticker_yahoo" : "C40.PA"
 }
