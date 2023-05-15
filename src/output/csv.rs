@@ -41,6 +41,43 @@ impl<'a> CsvOutput<'a> {
         }
     }
 
+    fn write_distribution_by_region(&self, filename: &str) -> Result<(), Error> {
+        let mut output_stream = File::create(filename)?;
+        if let Some(portfolio) = self.indicators.portfolios.last() {
+            let data = portfolio.make_distribution_by_region();
+            for (region_name, pct) in data {
+                output_stream.write_all(format!("{};{}\n", region_name, pct).as_bytes())?;
+            }
+        }
+        Ok(())
+    }
+
+    fn write_distribution_global_by_instrument(&self, filename: &str) -> Result<(), Error> {
+        let mut output_stream = File::create(filename)?;
+        if let Some(portfolio) = self.indicators.portfolios.last() {
+            let data = portfolio.make_distribution_global_by_instrument();
+            for (region_name, pct) in data {
+                output_stream.write_all(format!("{};{}\n", region_name, pct).as_bytes())?;
+            }
+        }
+        Ok(())
+    }
+
+    fn write_distribution_by_instrument(
+        &self,
+        region_name: &str,
+        filename: &str,
+    ) -> Result<(), Error> {
+        let mut output_stream = File::create(filename)?;
+        if let Some(portfolio) = self.indicators.portfolios.last() {
+            let data = portfolio.make_distribution_by_instrument(region_name);
+            for (region_name, pct) in data {
+                output_stream.write_all(format!("{};{}\n", region_name, pct).as_bytes())?;
+            }
+        }
+        Ok(())
+    }
+
     fn write_instrument_heat_map(
         &self,
         instrument_name: &str,
@@ -127,7 +164,7 @@ impl<'a> CsvOutput<'a> {
         let mut output_stream = File::create(filename)?;
         output_stream.write_all(
           "Date;Instrument;Spot(Close);Quantity;Unit Price;Valuation;Nominal;Dividends;Tax;P&L(%);P&L Daily(%);P&L Weekly(%);P&L Monthly(%);P&L Yearly(%);P&L for 3 Months(%);P&L for one Year(%);P&L;P&L Daily;P&L Weekly;P&L Monthly;P&L Yearly;P&L for 3 Months;P&L for one Year;Volatility 3M;Volatility 1Y;Earning;Earning + Valuation\n".as_bytes(),
-      )?;
+        )?;
         for position_indicator in self.indicators.by_instrument_name(instrument_name) {
             output_stream.write_all(
                 format!(
@@ -189,6 +226,26 @@ impl<'a> Output for CsvOutput<'a> {
                 self.output_dir, self.portfolio.name, instrument_name
             );
             self.write_instrument_heat_map(instrument_name, &filename)?;
+        }
+
+        let filename = format!(
+            "{}/distribution_by_region_{}.csv",
+            self.output_dir, self.portfolio.name
+        );
+        self.write_distribution_by_region(&filename)?;
+
+        let filename = format!(
+            "{}/distribution_global_{}.csv",
+            self.output_dir, self.portfolio.name
+        );
+        self.write_distribution_global_by_instrument(&filename)?;
+
+        for region_name in self.portfolio.get_region_name_list() {
+            let filename = format!(
+                "{}/distribution_{}_{}.csv",
+                self.output_dir, self.portfolio.name, region_name
+            );
+            self.write_distribution_by_instrument(region_name, &filename)?;
         }
 
         Ok(())

@@ -88,7 +88,7 @@ impl PortfolioIndicators {
             .flat_map(|item| {
                 item.positions
                     .iter()
-                    .find(|ooo| ooo.instrument.name == instrument_name)
+                    .find(|item_position| item_position.instrument.name == instrument_name)
             })
             .collect()
     }

@@ -45,4 +45,11 @@ impl Portfolio {
             .map(|position| &position.instrument.name)
             .collect()
     }
+
+    pub fn get_region_name_list(&self) -> HashSet<&String> {
+        self.positions
+            .iter()
+            .map(|position| &position.instrument.region)
+            .collect()
+    }
 }

@@ -3,6 +3,7 @@ use super::tools::{make_pnls, make_volatilities, Pnl};
 use crate::alias::Date;
 use crate::historical::Provider;
 use crate::portfolio::{CashVariationSource, Portfolio};
+use std::collections::HashMap;
 
 use log::{debug, error};
 
@@ -114,6 +115,46 @@ impl PortfolioIndicator {
             earning_latent,
             cash,
         }
+    }
+
+    pub fn make_distribution_by_region(&self) -> HashMap<String, f64> {
+        let mut ret: HashMap<String, f64> = Default::default();
+        for position in self.positions.iter() {
+            let value = ret
+                .entry(position.instrument.region.clone())
+                .or_insert_with(|| 0.0);
+            *value += position.valuation / self.valuation;
+        }
+        ret
+    }
+
+    pub fn make_distribution_by_instrument(&self, region_name: &str) -> HashMap<String, f64> {
+        let mut ret: HashMap<String, f64> = Default::default();
+        let mut valuation = 0.0;
+        for position in self
+            .positions
+            .iter()
+            .filter(|item| item.instrument.region == region_name)
+        {
+            valuation += position.valuation;
+            *ret.entry(position.instrument.name.clone())
+                .or_insert_with(|| 0.0) = position.valuation;
+        }
+        ret.iter_mut().for_each(|(_, value)| {
+            *value /= valuation;
+        });
+        ret
+    }
+
+    pub fn make_distribution_global_by_instrument(&self) -> HashMap<String, f64> {
+        let mut ret: HashMap<String, f64> = Default::default();
+        for position in self.positions.iter() {
+            let value = ret
+                .entry(position.instrument.name.clone())
+                .or_insert_with(|| 0.0);
+            *value += position.valuation / self.valuation;
+        }
+        ret
     }
 
     fn make_positions_<P>(

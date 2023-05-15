@@ -8,7 +8,7 @@ use spreadsheet_ods::{
     currency, percent, CellStyleRef, Sheet, Value, ValueFormatCurrency, ValueFormatDateTime,
     ValueFormatRef, WorkBook,
 };
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 macro_rules! update_sheet_with_indicator {
     ($sheet:ident, $row:expr, $col:expr, $currency:expr, $indicator:expr) => {
@@ -294,6 +294,52 @@ impl<'a> OdsOutput<'a> {
         Ok(())
     }
 
+    fn write_distribution(&mut self) -> Result<(), Error> {
+        let mut sheet = Sheet::new("Distribution");
+        if let Some(portfolio) = self.indicators.portfolios.last() {
+            let mut row = self.write_distribution_(
+                &mut sheet,
+                "by region",
+                portfolio.make_distribution_by_region(),
+                0,
+            )?;
+
+            row = self.write_distribution_(
+                &mut sheet,
+                "by instrument",
+                portfolio.make_distribution_global_by_instrument(),
+                row + 2,
+            )?;
+
+            for region_name in self.portfolio.get_region_name_list() {
+                row = self.write_distribution_(
+                    &mut sheet,
+                    &format!("by instrument in {}", region_name),
+                    portfolio.make_distribution_by_instrument(region_name),
+                    row + 2,
+                )?;
+            }
+        }
+        self.add_sheet(sheet);
+        Ok(())
+    }
+
+    fn write_distribution_(
+        &mut self,
+        sheet: &mut Sheet,
+        name: &str,
+        data: HashMap<String, f64>,
+        mut row: u32,
+    ) -> Result<u32, Error> {
+        sheet.set_value(row, 0, Value::Text(name.to_string()));
+        for (key, value) in data {
+            sheet.set_value(row, 1, Value::Text(key.to_string()));
+            sheet.set_value(row, 2, percent!(value));
+            row += 1;
+        }
+        Ok(row)
+    }
+
     fn write_heat_map_(
         &mut self,
         sheet: &mut Sheet,
@@ -390,6 +436,9 @@ impl<'a> Output for OdsOutput<'a> {
     fn write_indicators(&mut self) -> Result<(), Error> {
         debug!("write heat map");
         self.write_heat_map()?;
+
+        debug!("write distribution");
+        self.write_distribution()?;
 
         debug!("write position indicators");
         self.write_position_indicators()?;
