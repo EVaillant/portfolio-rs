@@ -54,11 +54,11 @@ impl Pnl {
         current_nominal: f64,
         current_valuation: f64,
     ) -> Self {
+        let previous_valuation_updated = previous_valuation + (current_nominal - previous_nominal);
         Self {
-            value: (current_valuation - previous_valuation) - (current_nominal - previous_nominal),
-            value_pct: ((current_valuation - previous_valuation)
-                - (current_nominal - previous_nominal))
-                / (current_valuation - (current_nominal - previous_nominal)),
+            value: current_valuation - previous_valuation_updated,
+            value_pct: (current_valuation - previous_valuation_updated)
+                / previous_valuation_updated,
         }
     }
 }

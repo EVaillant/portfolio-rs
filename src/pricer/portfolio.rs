@@ -67,8 +67,7 @@ impl PortfolioIndicator {
         ) = make_pnls(date, nominal, valuation, |date| {
             previous_value
                 .iter()
-                .rev()
-                .find(|item| item.date <= date)
+                .find(|item| item.date >= date)
                 .map(|item| (item.nominal, item.valuation))
         });
 

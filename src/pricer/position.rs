@@ -83,9 +83,8 @@ impl PositionIndicator {
         ) = make_pnls(date, nominal, valuation, |date| {
             previous_value
                 .iter()
-                .rev()
                 .find(|item| {
-                    item.date <= date
+                    item.date >= date
                         && item
                             .positions
                             .iter()
