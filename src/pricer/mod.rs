@@ -68,7 +68,11 @@ impl PortfolioIndicators {
             if let Some(trade) = position.trades.first() {
                 let instrument_begin = trade.date.date();
                 if instrument_begin < end {
-                    spot_provider.fetch(&position.instrument, instrument_begin, end)?;
+                    let instrument_end = position
+                        .get_close_date()
+                        .map(|date_time| date_time.date())
+                        .unwrap_or(end);
+                    spot_provider.fetch(&position.instrument, instrument_begin, instrument_end)?;
                 }
             }
         }

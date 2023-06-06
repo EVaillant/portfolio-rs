@@ -31,6 +31,7 @@ pub struct PositionIndicator {
     pub volatility_1_year: f64,
     pub earning: f64,
     pub earning_latent: f64,
+    pub is_already_close: bool,
 }
 
 impl PositionIndicator {
@@ -114,6 +115,13 @@ impl PositionIndicator {
             ret
         });
 
+        let is_already_close = quantity.abs() < 1e-7
+            && position
+                .trades
+                .last()
+                .map(|trade| trade.date.date() < date)
+                .unwrap_or(false);
+
         let earning = dividends
             + position
                 .trades
@@ -151,6 +159,7 @@ impl PositionIndicator {
             volatility_1_year,
             earning,
             earning_latent,
+            is_already_close,
         }
     }
 
@@ -167,6 +176,10 @@ impl PositionIndicator {
                         Way::Sell => {
                             quantity -= trade.quantity;
                             quantity_sell += trade.quantity;
+                            if quantity.abs() < 1e-7 {
+                                quantity = 0.0;
+                                unit_price = 0.0;
+                            }
                         }
                         Way::Buy => {
                             unit_price =

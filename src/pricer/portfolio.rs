@@ -96,7 +96,10 @@ impl PortfolioIndicator {
 
         PortfolioIndicator {
             date,
-            positions,
+            positions: positions
+                .into_iter()
+                .filter(|position| !position.is_already_close)
+                .collect(),
             valuation,
             nominal,
             dividends,
@@ -135,6 +138,9 @@ impl PortfolioIndicator {
             .iter()
             .filter(|item| item.instrument.region == region_name)
         {
+            if position.valuation.abs() < 1e-7 {
+                continue;
+            }
             valuation += position.valuation;
             *ret.entry(position.instrument.name.clone())
                 .or_insert_with(|| 0.0) = position.valuation;
@@ -148,6 +154,9 @@ impl PortfolioIndicator {
     pub fn make_distribution_global_by_instrument(&self) -> HashMap<String, f64> {
         let mut ret: HashMap<String, f64> = Default::default();
         for position in self.positions.iter() {
+            if position.valuation.abs() < 1e-7 {
+                continue;
+            }
             let value = ret
                 .entry(position.instrument.name.clone())
                 .or_insert_with(|| 0.0);
