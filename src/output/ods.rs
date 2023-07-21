@@ -1,6 +1,6 @@
 use super::Output;
 use crate::error::Error;
-use crate::portfolio::{Portfolio, Way};
+use crate::portfolio::Portfolio;
 use crate::pricer::{HeatMapItem, PortfolioIndicators};
 use log::debug;
 use spreadsheet_ods::format::{FormatNumberStyle, ValueFormatTrait};
@@ -134,6 +134,116 @@ impl<'a> OdsOutput<'a> {
         Ok(())
     }
 
+    fn write_summary(&mut self) -> Result<(), Error> {
+        let mut sheet = Sheet::new("Summary");
+        // header
+        for (i, header_name) in [
+            "Instrument",
+            "Quantity",
+            "Unit Price",
+            "Spot (Close)",
+            "Valuation",
+            "Tax",
+            "Nominal",
+            "Dividends",
+            "P&L",
+            "P&L(%)",
+            "Distribution",
+        ]
+        .iter()
+        .enumerate()
+        {
+            sheet.set_value(0, i as u32, Value::Text(header_name.to_string()));
+        }
+
+        let currency_style_ref = self.get_currency_style(&self.portfolio.currency.name)?;
+        for i in [2, 3, 4, 5, 6, 7, 8] {
+            sheet.set_col_cellstyle(i, &currency_style_ref);
+        }
+
+        if let Some(portolio) = self.indicators.portfolios.last() {
+            let distribution = portolio.make_distribution_global_by_instrument();
+            let mut i = 0;
+            for position in portolio.positions.iter() {
+                sheet.set_value(1 + i as u32, 0, &position.instrument.name);
+                sheet.set_value(1 + i as u32, 1, position.quantity);
+                sheet.set_value(
+                    1 + i as u32,
+                    2,
+                    currency!(&position.instrument.currency.name, position.unit_price),
+                );
+                sheet.set_value(
+                    1 + i as u32,
+                    3,
+                    currency!(&position.instrument.currency.name, position.spot.close()),
+                );
+                sheet.set_value(
+                    1 + i as u32,
+                    4,
+                    currency!(&position.instrument.currency.name, position.valuation),
+                );
+                sheet.set_value(
+                    1 + i as u32,
+                    5,
+                    currency!(&position.instrument.currency.name, position.tax),
+                );
+                sheet.set_value(
+                    1 + i as u32,
+                    6,
+                    currency!(&position.instrument.currency.name, position.nominal),
+                );
+                sheet.set_value(
+                    1 + i as u32,
+                    7,
+                    currency!(&position.instrument.currency.name, position.dividends),
+                );
+                sheet.set_value(
+                    1 + i as u32,
+                    8,
+                    currency!(
+                        &position.instrument.currency.name,
+                        position.pnl_current.value
+                    ),
+                );
+                sheet.set_value(1 + i as u32, 9, percent!(position.pnl_current.value_pct));
+                if let Some(instrument_distribution) = distribution.get(&position.instrument.name) {
+                    sheet.set_value(1 + i as u32, 10, percent!(*instrument_distribution));
+                }
+                i += 1;
+            }
+
+            sheet.set_value(
+                2 + i as u32,
+                4,
+                currency!(&self.portfolio.currency.name, portolio.valuation),
+            );
+            sheet.set_value(
+                2 + i as u32,
+                5,
+                currency!(&self.portfolio.currency.name, portolio.tax),
+            );
+            sheet.set_value(
+                2 + i as u32,
+                6,
+                currency!(&self.portfolio.currency.name, portolio.nominal),
+            );
+            sheet.set_value(
+                2 + i as u32,
+                7,
+                currency!(&self.portfolio.currency.name, portolio.dividends),
+            );
+            sheet.set_value(
+                2 + i as u32,
+                8,
+                currency!(&self.portfolio.currency.name, portolio.pnl_current.value),
+            );
+            sheet.set_value(2 + i as u32, 9, percent!(portolio.pnl_current.value_pct));
+        }
+
+        self.add_sheet(sheet);
+        Ok(())
+    }
+
     fn write_trades(&mut self) -> Result<(), Error> {
         let mut sheet = Sheet::new("Trades");
 
@@ -167,11 +277,7 @@ impl<'a> OdsOutput<'a> {
                 sheet.set_value(row, 0, trade.date);
                 sheet.set_value(row, 1, &position.instrument.name);
                 sheet.set_value(row, 2, trade.quantity);
-                let way_str = match trade.way {
-                    Way::Buy => "Buy",
-                    Way::Sell => "Sell",
-                };
-                sheet.set_value(row, 3, way_str);
+                sheet.set_value(row, 3, format!("{}", trade.way));
                 sheet.set_value(
                     row,
                     4,
@@ -495,6 +601,9 @@ impl<'a> OdsOutput<'a> {
 
 impl<'a> Output for OdsOutput<'a> {
     fn write_indicators(&mut self) -> Result<(), Error> {
+        debug!("write summary");
+        self.write_summary()?;
+
         debug!("write trades");
         self.write_trades()?;
 
