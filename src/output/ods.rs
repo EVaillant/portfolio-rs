@@ -1,6 +1,6 @@
 use super::Output;
 use crate::error::Error;
-use crate::portfolio::Portfolio;
+use crate::portfolio::{Portfolio, Way};
 use crate::pricer::{HeatMapItem, PortfolioIndicators};
 use log::debug;
 use spreadsheet_ods::format::{FormatNumberStyle, ValueFormatTrait};
@@ -131,6 +131,67 @@ impl<'a> OdsOutput<'a> {
 
     fn save(&mut self) -> Result<(), Error> {
         spreadsheet_ods::write_ods(&mut self.work_book, &self.output_filename)?;
+        Ok(())
+    }
+
+    fn write_trades(&mut self) -> Result<(), Error> {
+        let mut sheet = Sheet::new("Trades");
+
+        // header
+        for (i, header_name) in [
+            "Date",
+            "Instrument",
+            "Quantity",
+            "Way",
+            "Unit Price",
+            "Price",
+            "Tax",
+        ]
+        .iter()
+        .enumerate()
+        {
+            sheet.set_value(0, i as u32, Value::Text(header_name.to_string()));
+        }
+
+        let date_style_ref = self.get_date_style("DD/MM/YYYY")?;
+        sheet.set_col_cellstyle(0, &date_style_ref);
+
+        let currency_style_ref = self.get_currency_style(&self.portfolio.currency.name)?;
+        for i in [4, 5, 6] {
+            sheet.set_col_cellstyle(i, &currency_style_ref);
+        }
+
+        let mut row = 1;
+        for position in self.portfolio.positions.iter() {
+            for trade in position.trades.iter() {
+                sheet.set_value(row, 0, trade.date);
+                sheet.set_value(row, 1, &position.instrument.name);
+                sheet.set_value(row, 2, trade.quantity);
+                let way_str = match trade.way {
+                    Way::Buy => "Buy",
+                    Way::Sell => "Sell",
+                };
+                sheet.set_value(row, 3, way_str);
+                sheet.set_value(
+                    row,
+                    4,
+                    currency!(&position.instrument.currency.name, trade.price + trade.tax),
+                );
+                sheet.set_value(
+                    row,
+                    5,
+                    currency!(&position.instrument.currency.name, trade.price),
+                );
+                sheet.set_value(
+                    row,
+                    6,
+                    currency!(&position.instrument.currency.name, trade.tax),
+                );
+                row += 1;
+            }
+        }
+
+        self.add_sheet(sheet);
         Ok(())
     }
 
@@ -434,6 +495,9 @@ impl<'a> OdsOutput<'a> {
 
 impl<'a> Output for OdsOutput<'a> {
     fn write_indicators(&mut self) -> Result<(), Error> {
+        debug!("write trades");
+        self.write_trades()?;
+
         debug!("write heat map");
         self.write_heat_map()?;
 
