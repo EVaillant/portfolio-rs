@@ -89,7 +89,7 @@ impl<'a> CsvOutput<'a> {
 
         for line in self
             .indicators
-            .make_instrument_heat_map(instrument_name)
+            .make_month_instrument_heat_map(instrument_name)
             .iter()
             .map(|(year, item)| convert_to_cvs(*year, item))
         {
@@ -106,7 +106,7 @@ impl<'a> CsvOutput<'a> {
 
         for line in self
             .indicators
-            .make_heat_map()
+            .make_month_heat_map()
             .iter()
             .map(|(year, item)| convert_to_cvs(*year, item))
         {

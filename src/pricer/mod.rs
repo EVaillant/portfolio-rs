@@ -21,6 +21,10 @@ fn is_last_day_of_month(date: Date) -> bool {
         .map_or(false, |v| v == date)
 }
 
+fn is_last_day_of_year(date: Date) -> bool {
+    date.month() == 12 && date.day() == 31
+}
+
 pub struct HeatMapItem {
     data: [Option<f64>; 12],
 }
@@ -97,7 +101,27 @@ impl PortfolioIndicators {
             .collect()
     }
 
-    pub fn make_heat_map(&self) -> BTreeMap<i32, HeatMapItem> {
+    pub fn make_year_heat_map(&self) -> BTreeMap<i32, f64> {
+        let mut values = self
+            .portfolios
+            .iter()
+            .filter(|item| is_last_day_of_year(item.date))
+            .collect::<Vec<_>>();
+        if let Some(last) = self.portfolios.last() {
+            if !is_last_day_of_year(last.date) {
+                values.push(last);
+            }
+        }
+
+        let mut lines: BTreeMap<i32, f64> = Default::default();
+        for item in values {
+            let year = item.date.year();
+            lines.insert(year, item.pnl_yearly.value_pct);
+        }
+        lines
+    }
+
+    pub fn make_month_heat_map(&self) -> BTreeMap<i32, HeatMapItem> {
         let mut values = self
             .portfolios
             .iter()
@@ -119,7 +143,10 @@ impl PortfolioIndicators {
         lines
     }
 
-    pub fn make_instrument_heat_map(&self, instrument_name: &str) -> BTreeMap<i32, HeatMapItem> {
+    pub fn make_month_instrument_heat_map(
+        &self,
+        instrument_name: &str,
+    ) -> BTreeMap<i32, HeatMapItem> {
         let position_by_instrument = self.by_instrument_name(instrument_name);
         let mut values = position_by_instrument
             .iter()

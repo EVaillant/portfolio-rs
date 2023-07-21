@@ -157,87 +157,121 @@ impl<'a> OdsOutput<'a> {
         }
 
         let currency_style_ref = self.get_currency_style(&self.portfolio.currency.name)?;
-        for i in [2, 3, 4, 5, 6, 7, 8] {
-            sheet.set_col_cellstyle(i, &currency_style_ref);
-        }
 
         if let Some(portolio) = self.indicators.portfolios.last() {
             let distribution = portolio.make_distribution_global_by_instrument();
-            let mut i = 0;
+            let mut i: u32 = 1;
             for position in portolio.positions.iter() {
-                sheet.set_value(1 + i as u32, 0, &position.instrument.name);
-                sheet.set_value(1 + i as u32, 1, position.quantity);
-                sheet.set_value(
-                    1 + i as u32,
+                sheet.set_value(i, 0, &position.instrument.name);
+                sheet.set_value(i, 1, position.quantity);
+                sheet.set_styled_value(
+                    i,
                     2,
                     currency!(&position.instrument.currency.name, position.unit_price),
+                    &currency_style_ref,
                 );
-                sheet.set_value(
-                    1 + i as u32,
+                sheet.set_styled_value(
+                    i,
                     3,
                     currency!(&position.instrument.currency.name, position.spot.close()),
+                    &currency_style_ref,
                 );
-                sheet.set_value(
-                    1 + i as u32,
+                sheet.set_styled_value(
+                    i,
                     4,
                     currency!(&position.instrument.currency.name, position.valuation),
+                    &currency_style_ref,
                 );
-                sheet.set_value(
-                    1 + i as u32,
+                sheet.set_styled_value(
+                    i,
                     5,
                     currency!(&position.instrument.currency.name, position.tax),
+                    &currency_style_ref,
                 );
-                sheet.set_value(
-                    1 + i as u32,
+                sheet.set_styled_value(
+                    i,
                     6,
                     currency!(&position.instrument.currency.name, position.nominal),
+                    &currency_style_ref,
                 );
-                sheet.set_value(
-                    1 + i as u32,
+                sheet.set_styled_value(
+                    i,
                     7,
                     currency!(&position.instrument.currency.name, position.dividends),
+                    &currency_style_ref,
                 );
-                sheet.set_value(
-                    1 + i as u32,
+                sheet.set_styled_value(
+                    i,
                     8,
                     currency!(
                         &position.instrument.currency.name,
                         position.pnl_current.value
                     ),
+                    &currency_style_ref,
                 );
-                sheet.set_value(1 + i as u32, 9, percent!(position.pnl_current.value_pct));
+                sheet.set_value(i, 9, percent!(position.pnl_current.value_pct));
                 if let Some(instrument_distribution) = distribution.get(&position.instrument.name) {
-                    sheet.set_value(1 + i as u32, 10, percent!(*instrument_distribution));
+                    sheet.set_value(i, 10, percent!(*instrument_distribution));
                 }
                 i += 1;
             }
 
-            sheet.set_value(
-                2 + i as u32,
+            i += 1;
+            sheet.set_value(i, 0, "Portfolio");
+            sheet.set_styled_value(
+                i,
                 4,
                 currency!(&self.portfolio.currency.name, portolio.valuation),
+                &currency_style_ref,
             );
-            sheet.set_value(
-                2 + i as u32,
+            sheet.set_styled_value(
+                i,
                 5,
                 currency!(&self.portfolio.currency.name, portolio.tax),
+                &currency_style_ref,
             );
-            sheet.set_value(
-                2 + i as u32,
+            sheet.set_styled_value(
+                i,
                 6,
                 currency!(&self.portfolio.currency.name, portolio.nominal),
+                &currency_style_ref,
             );
-            sheet.set_value(
-                2 + i as u32,
+            sheet.set_styled_value(
+                i,
                 7,
                 currency!(&self.portfolio.currency.name, portolio.dividends),
+                &currency_style_ref,
             );
-            sheet.set_value(
-                2 + i as u32,
+            sheet.set_styled_value(
+                i,
                 8,
                 currency!(&self.portfolio.currency.name, portolio.pnl_current.value),
+                &currency_style_ref,
             );
-            sheet.set_value(2 + i as u32, 9, percent!(portolio.pnl_current.value_pct));
+            sheet.set_value(i, 9, percent!(portolio.pnl_current.value_pct));
+
+            i += 2;
+            sheet.set_value(i, 0, "Cash");
+            sheet.set_styled_value(
+                i,
+                1,
+                currency!(&self.portfolio.currency.name, portolio.cash),
+                &currency_style_ref,
+            );
+
+            i += 2;
+            sheet.set_value(i, 0, "Distribution by Region");
+            for (key, value) in portolio.make_distribution_by_region() {
+                sheet.set_value(i, 1, Value::Text(key.to_string()));
+                sheet.set_value(i, 2, percent!(value));
+                i += 1;
+            }
+
+            let heat_map = self.indicators.make_month_heat_map();
+            i = self.write_month_heat_map_(&mut sheet, "Heat Map By Month", 2 + i, &heat_map)?;
+
+            let heat_map = self.indicators.make_year_heat_map();
+            self.write_year_heat_map_(&mut sheet, "Heat Map By Year", 2 + i, &heat_map)?;
         }
 
         self.add_sheet(sheet);
@@ -449,12 +483,15 @@ impl<'a> OdsOutput<'a> {
     fn write_heat_map(&mut self) -> Result<(), Error> {
         let mut sheet = Sheet::new("Heat Map");
 
-        let heat_map = self.indicators.make_heat_map();
-        let mut end_row = self.write_heat_map_(&mut sheet, "Portfolio", 0, &heat_map)?;
+        let heat_map = self.indicators.make_month_heat_map();
+        let mut end_row = self.write_month_heat_map_(&mut sheet, "Portfolio", 0, &heat_map)?;
 
         for instrument_name in self.portfolio.get_instrument_name_list() {
-            let heat_map = self.indicators.make_instrument_heat_map(instrument_name);
-            end_row = self.write_heat_map_(&mut sheet, instrument_name, end_row + 2, &heat_map)?;
+            let heat_map = self
+                .indicators
+                .make_month_instrument_heat_map(instrument_name);
+            end_row =
+                self.write_month_heat_map_(&mut sheet, instrument_name, end_row + 2, &heat_map)?;
         }
 
         self.add_sheet(sheet);
@@ -507,7 +544,7 @@ impl<'a> OdsOutput<'a> {
         Ok(row)
     }
 
-    fn write_heat_map_(
+    fn write_month_heat_map_(
         &mut self,
         sheet: &mut Sheet,
         name: &str,
@@ -535,6 +572,22 @@ impl<'a> OdsOutput<'a> {
             row += 1;
         }
 
+        Ok(row)
+    }
+
+    fn write_year_heat_map_(
+        &mut self,
+        sheet: &mut Sheet,
+        name: &str,
+        mut row: u32,
+        heat_map: &BTreeMap<i32, f64>,
+    ) -> Result<u32, Error> {
+        sheet.set_value(row, 0, Value::Text(name.to_string()));
+        for (year, value) in heat_map {
+            sheet.set_value(row, 1, year);
+            sheet.set_value(row, 2, percent!(*value));
+            row += 1;
+        }
         Ok(row)
     }
 

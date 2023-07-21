@@ -1,5 +1,5 @@
 # Portfolio
-![License](https://img.shields.io/badge/License-Boost%201.0-lightblue.svg) ![CI](https://github.com/EVaillant/portfolio-rs/workflows/CI/badge.svg)
+![License](https://img.shields.io/badge/License-Boost%201.0-lightblue.svg) ![CI](https://github.com/EVaillant/portfolio-rs/workflows/CI/badge.svg) ![](https://tokei.rs/b1/github/EVaillant/portfolio-rs)
 
 ### Contribution
 
