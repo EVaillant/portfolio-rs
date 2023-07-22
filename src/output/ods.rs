@@ -308,6 +308,12 @@ impl<'a> OdsOutput<'a> {
         let mut row = 1;
         for position in self.portfolio.positions.iter() {
             for trade in position.trades.iter() {
+                if trade.date.date() > self.indicators.end {
+                    continue;
+                }
+                if trade.date.date() < self.indicators.begin {
+                    continue;
+                }
                 sheet.set_value(row, 0, trade.date);
                 sheet.set_value(row, 1, &position.instrument.name);
                 sheet.set_value(row, 2, trade.quantity);

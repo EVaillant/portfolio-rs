@@ -48,6 +48,8 @@ impl HeatMapItem {
 }
 
 pub struct PortfolioIndicators {
+    pub begin: Date,
+    pub end: Date,
     pub portfolios: Vec<PortfolioIndicator>,
 }
 
@@ -87,7 +89,11 @@ impl PortfolioIndicators {
             PortfolioIndicators::make_portfolios_(portfolio, begin, end, spot_provider);
         info!("price portfolios is finished");
 
-        Ok(PortfolioIndicators { portfolios })
+        Ok(PortfolioIndicators {
+            begin,
+            end,
+            portfolios,
+        })
     }
 
     pub fn by_instrument_name(&self, instrument_name: &str) -> Vec<&PositionIndicator> {

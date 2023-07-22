@@ -78,6 +78,10 @@ struct Args {
     /// spot source
     #[clap(default_value_t = SpotSource::Yahoo, short, long, value_parser)]
     spot_source: SpotSource,
+
+    /// pricing date format YYYY-MM-DD
+    #[clap(default_value_t = String::from("now"), short = 'd', long, value_parser)]
+    pricing_date: String,
 }
 
 fn make_requester(source: SpotSource) -> Result<Box<dyn Requester>, Error> {
@@ -101,6 +105,15 @@ fn main() -> Result<(), Error> {
     builder.init();
 
     //
+    // get pricing date
+    let pricing_end_date = if args.pricing_date == "now" {
+        chrono::Utc::now().date_naive()
+    } else {
+        chrono::NaiveDate::parse_from_str(&args.pricing_date, "%Y-%m-%d")
+            .expect("invalid pricing date format")
+    };
+
+    //
     // Load portfolio
     let mut referential = Referential::new(args.marketdata_dir);
     let portfolio = referential.load_portfolio(&args.portfolio)?;
@@ -117,10 +130,13 @@ fn main() -> Result<(), Error> {
 
     //
     // compute main portfolio
-    let compute_begin = portfolio.get_trade_date()?;
-    let compute_end = chrono::Utc::now().date_naive();
-    let portfolio_indicators =
-        PortfolioIndicators::from_portfolio(&portfolio, compute_begin, compute_end, &mut provider)?;
+    let pricing_begin_date = portfolio.get_trade_date()?;
+    let portfolio_indicators = PortfolioIndicators::from_portfolio(
+        &portfolio,
+        pricing_begin_date,
+        pricing_end_date,
+        &mut provider,
+    )?;
     info!("compute portfolio done");
 
     //
