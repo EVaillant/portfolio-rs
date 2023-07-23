@@ -258,8 +258,22 @@ impl<'a> OdsOutput<'a> {
                 currency!(&self.portfolio.currency.name, portolio.cash),
                 &currency_style_ref,
             );
+            sheet.set_value(i + 1, 0, "Incoming Transfert");
+            sheet.set_styled_value(
+                i + 1,
+                1,
+                currency!(&self.portfolio.currency.name, portolio.incoming_transfer),
+                &currency_style_ref,
+            );
+            sheet.set_value(i + 2, 0, "OUtcoming Transfert");
+            sheet.set_styled_value(
+                i + 2,
+                1,
+                currency!(&self.portfolio.currency.name, portolio.outcoming_transfer),
+                &currency_style_ref,
+            );
 
-            i += 2;
+            i += 4;
             sheet.set_value(i, 0, "Distribution by Region");
             for (key, value) in portolio.make_distribution_by_region() {
                 sheet.set_value(i, 1, Value::Text(key.to_string()));
@@ -348,6 +362,8 @@ impl<'a> OdsOutput<'a> {
         for (i, header_name) in [
             "Date",
             "Cash",
+            "Incoming Transfert",
+            "Outcoming Transfert",
             "Valuation",
             "Nominal",
             "Dividends",
@@ -381,7 +397,7 @@ impl<'a> OdsOutput<'a> {
         sheet.set_col_cellstyle(0, &date_style_ref);
 
         let currency_style_ref = self.get_currency_style(&self.portfolio.currency.name)?;
-        for i in [1, 2, 3, 4, 5, 13, 14, 15, 16, 17, 18, 19, 22, 23] {
+        for i in [1, 2, 3, 4, 5, 6, 7, 15, 16, 17, 18, 19, 20, 21, 24, 25] {
             sheet.set_col_cellstyle(i, &currency_style_ref);
         }
 
@@ -392,10 +408,26 @@ impl<'a> OdsOutput<'a> {
                 1,
                 currency!(&self.portfolio.currency.name, portfolio_indicator.cash),
             );
+            sheet.set_value(
+                1 + i as u32,
+                2,
+                currency!(
+                    &self.portfolio.currency.name,
+                    portfolio_indicator.incoming_transfer
+                ),
+            );
+            sheet.set_value(
+                1 + i as u32,
+                3,
+                currency!(
+                    &self.portfolio.currency.name,
+                    portfolio_indicator.outcoming_transfer
+                ),
+            );
             update_sheet_with_indicator!(
                 sheet,
                 1 + i as u32,
-                2,
+                4,
                 self.portfolio.currency,
                 portfolio_indicator
             );

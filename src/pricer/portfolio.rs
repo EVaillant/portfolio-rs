@@ -25,6 +25,8 @@ pub struct PortfolioIndicator {
     pub volatility_1_year: f64,
     pub earning: f64,
     pub earning_latent: f64,
+    pub incoming_transfer: f64,
+    pub outcoming_transfer: f64,
     pub cash: f64,
 }
 
@@ -81,14 +83,30 @@ impl PortfolioIndicator {
             ret
         });
 
-        let cash = portfolio
+        let incoming_transfer = portfolio
             .cash
             .iter()
             .filter(|variation| {
-                variation.date.date() <= date && variation.source == CashVariationSource::Payment
+                variation.date.date() <= date
+                    && variation.source == CashVariationSource::Payment
+                    && variation.position.is_sign_positive()
             })
             .map(|variation| variation.position)
-            .sum::<f64>()
+            .sum::<f64>();
+
+        let outcoming_transfer = portfolio
+            .cash
+            .iter()
+            .filter(|variation| {
+                variation.date.date() <= date
+                    && variation.source == CashVariationSource::Payment
+                    && variation.position.is_sign_negative()
+            })
+            .map(|variation| variation.position)
+            .sum::<f64>();
+
+        let cash = incoming_transfer
+            + outcoming_transfer
             + positions
                 .iter()
                 .map(|position| position.earning)
@@ -115,6 +133,8 @@ impl PortfolioIndicator {
             volatility_1_year,
             earning,
             earning_latent,
+            incoming_transfer,
+            outcoming_transfer,
             cash,
         }
     }
