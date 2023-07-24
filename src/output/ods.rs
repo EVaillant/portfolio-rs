@@ -258,22 +258,35 @@ impl<'a> OdsOutput<'a> {
                 currency!(&self.portfolio.currency.name, portolio.cash),
                 &currency_style_ref,
             );
-            sheet.set_value(i + 1, 0, "Incoming Transfert");
+            i += 1;
+            sheet.set_value(i, 0, "Cash + Valuation");
             sheet.set_styled_value(
-                i + 1,
+                i,
+                1,
+                currency!(
+                    &self.portfolio.currency.name,
+                    portolio.cash + portolio.valuation
+                ),
+                &currency_style_ref,
+            );
+            i += 1;
+            sheet.set_value(i, 0, "Incoming Transfert");
+            sheet.set_styled_value(
+                i,
                 1,
                 currency!(&self.portfolio.currency.name, portolio.incoming_transfer),
                 &currency_style_ref,
             );
-            sheet.set_value(i + 2, 0, "OUtcoming Transfert");
+            i += 1;
+            sheet.set_value(i, 0, "Outcoming Transfert");
             sheet.set_styled_value(
-                i + 2,
+                i,
                 1,
                 currency!(&self.portfolio.currency.name, portolio.outcoming_transfer),
                 &currency_style_ref,
             );
 
-            i += 4;
+            i += 2;
             sheet.set_value(i, 0, "Distribution by Region");
             for (key, value) in portolio.make_distribution_by_region() {
                 sheet.set_value(i, 1, Value::Text(key.to_string()));
