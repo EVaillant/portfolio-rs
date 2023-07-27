@@ -84,15 +84,17 @@ where
         Pnl::new(nominal, valuation)
     };
 
-    let pnl_yearly = Date::from_ymd_opt(date.year() - 1, 12, 31).map(|previous_year_date| {
-        make_pnl(
-            previous_year_date,
-            Delay::zero(),
-            nominal,
-            valuation,
-            &get_previous_value,
-        )
-    });
+    let pnl_yearly = Date::from_ymd_opt(date.year() - 1, 12, 31)
+        .map(|previous_year_date| {
+            make_pnl(
+                previous_year_date,
+                Delay::zero(),
+                nominal,
+                valuation,
+                &get_previous_value,
+            )
+        })
+        .unwrap_or_default();
 
     (
         pnl_current,
@@ -117,7 +119,7 @@ where
             valuation,
             &get_previous_value,
         ),
-        pnl_yearly.unwrap_or_default(),
+        pnl_yearly,
         make_pnl(
             date,
             Delay::months(3),

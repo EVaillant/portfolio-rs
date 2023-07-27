@@ -6,7 +6,7 @@ use crate::portfolio::{CashVariationSource, Portfolio};
 use std::collections::HashMap;
 
 use log::{debug, error};
-
+#[derive(Default)]
 pub struct PortfolioIndicator {
     pub date: Date,
     pub positions: Vec<PositionIndicator>,

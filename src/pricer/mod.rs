@@ -73,7 +73,7 @@ impl PortfolioIndicators {
         for position in portfolio.positions.iter() {
             if let Some(trade) = position.trades.first() {
                 let instrument_begin = trade.date.date();
-                if instrument_begin < end {
+                if instrument_begin <= end {
                     let instrument_end = position
                         .get_close_date()
                         .map(|date_time| date_time.date())

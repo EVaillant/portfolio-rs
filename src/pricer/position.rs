@@ -96,7 +96,13 @@ impl PositionIndicator {
                         .iter()
                         .find(|item_postion| item_postion.instrument == position.instrument)
                 })
-                .map(|item| (item.nominal, item.valuation))
+                .map(|item| {
+                    if item.date == date {
+                        (item.nominal, item.valuation)
+                    } else {
+                        (item.nominal, item.nominal)
+                    }
+                })
         });
 
         let (volatility_3_month, volatility_1_year) = make_volatilities(date, |date| {
@@ -193,5 +199,201 @@ impl PositionIndicator {
                     (quantity, quantity_buy, quantity_sell, unit_price, tax)
                 },
             )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::marketdata::{Currency, Instrument, Market};
+    use crate::portfolio::{Position, Trade, Way};
+    use assert_float_eq::*;
+
+    fn make_instrument_(name: &str) -> Rc<Instrument> {
+        let currency = Rc::new(Currency {
+            name: String::from("EUR"),
+            parent_currency: None,
+        });
+
+        let market = Rc::new(Market {
+            name: String::from("EPA"),
+            description: String::from("EPA"),
+        });
+
+        Rc::new(Instrument {
+            name: String::from(name),
+            isin: String::from("ISIN"),
+            description: String::from("description"),
+            market,
+            currency,
+            ticker_yahoo: None,
+            region: String::from("region"),
+            fund_category: String::from("category"),
+            dividends: None,
+        })
+    }
+
+    fn make_indicator_(
+        position: &Position,
+        date: Date,
+        spot: f64,
+        previous_value: &[PortfolioIndicator],
+    ) -> PositionIndicator {
+        let spot = DataFrame::new(date, spot, spot, spot, spot);
+        PositionIndicator::from_position(position, date, &spot, previous_value)
+    }
+
+    fn make_default_portfolio_indicator_(
+        position_indicator: PositionIndicator,
+    ) -> PortfolioIndicator {
+        PortfolioIndicator {
+            date: position_indicator.date,
+            positions: vec![position_indicator],
+            ..Default::default()
+        }
+    }
+
+    fn check_indicator_(
+        indicator: &PositionIndicator,
+        valuation: f64,
+        nominal: f64,
+        quantity: (f64, f64, f64),
+        unit_price: f64,
+        ref_valuation: (f64, f64, f64),
+    ) {
+        assert_float_absolute_eq!(indicator.valuation, valuation, 1e-7);
+        assert_float_absolute_eq!(indicator.nominal, nominal, 1e-7);
+        assert_float_absolute_eq!(indicator.quantity, quantity.0, 1e-7);
+        assert_float_absolute_eq!(indicator.quantity_buy, quantity.1, 1e-7);
+        assert_float_absolute_eq!(indicator.quantity_sell, quantity.2, 1e-7);
+        assert_float_absolute_eq!(indicator.unit_price, unit_price, 1e-7);
+        assert_float_absolute_eq!(
+            indicator.pnl_current.value,
+            indicator.valuation - indicator.nominal,
+            1e-7
+        );
+        assert_float_absolute_eq!(
+            indicator.pnl_daily.value,
+            indicator.valuation - ref_valuation.0,
+            1e-7
+        );
+        assert_float_absolute_eq!(
+            indicator.pnl_weekly.value,
+            indicator.valuation - ref_valuation.1,
+            1e-7
+        );
+        assert_float_absolute_eq!(
+            indicator.pnl_monthly.value,
+            indicator.valuation - ref_valuation.2,
+            1e-7
+        );
+    }
+
+    #[test]
+    fn compute_position_without_trade() {
+        let instrument = make_instrument_("PAEEM");
+        let position = Position {
+            instrument,
+            trades: Default::default(),
+        };
+        let date = chrono::NaiveDate::from_ymd_opt(2022, 3, 17).unwrap();
+        let indicator = make_indicator_(&position, date, 21.92, &Vec::new());
+        check_indicator_(&indicator, 0.0, 0.0, (0.0, 0.0, 0.0), 0.0, (0.0, 0.0, 0.0));
+    }
+
+    #[test]
+    fn compute_position_with_trade_01() {
+        let instrument = make_instrument_("PAEEM");
+        let position = Position {
+            instrument,
+            trades: vec![Trade {
+                date: chrono::DateTime::parse_from_rfc3339("2022-03-17T10:00:00-00:00")
+                    .unwrap()
+                    .naive_local(),
+                way: Way::Buy,
+                quantity: 14.0,
+                price: 22.184,
+                tax: 1.55,
+            }],
+        };
+
+        let mut portfolio_indicators = Vec::new();
+        let date = chrono::NaiveDate::from_ymd_opt(2022, 3, 17).unwrap();
+        for (pos, spot) in [
+            21.92, 22.41, 22.41, 22.41, 22.03, 22.55, 22.55, 22.53, 22.32, 22.32, 22.32, 22.35,
+            22.53,
+        ]
+        .iter()
+        .enumerate()
+        {
+            let date = date
+                .checked_add_days(chrono::naive::Days::new(pos as u64))
+                .unwrap();
+            let portfolio_indicator = make_default_portfolio_indicator_(make_indicator_(
+                &position,
+                date,
+                *spot,
+                &portfolio_indicators,
+            ));
+            portfolio_indicators.push(portfolio_indicator);
+        }
+
+        let indicator_17 = portfolio_indicators
+            .get(0)
+            .unwrap()
+            .positions
+            .get(0)
+            .unwrap();
+        let indicator_18 = portfolio_indicators
+            .get(1)
+            .unwrap()
+            .positions
+            .get(0)
+            .unwrap();
+        let indicator_21 = portfolio_indicators
+            .get(4)
+            .unwrap()
+            .positions
+            .get(0)
+            .unwrap();
+
+        check_indicator_(
+            indicator_17,
+            indicator_17.spot.close() * 14.0,
+            312.126,
+            (14.0, 14.0, 0.0),
+            312.126 / 14.0,
+            (
+                indicator_17.nominal,
+                indicator_17.nominal,
+                indicator_17.nominal,
+            ),
+        );
+
+        check_indicator_(
+            indicator_18,
+            indicator_18.spot.close() * 14.0,
+            312.126,
+            (14.0, 14.0, 0.0),
+            312.126 / 14.0,
+            (
+                indicator_17.valuation,
+                indicator_17.nominal,
+                indicator_17.nominal,
+            ),
+        );
+
+        check_indicator_(
+            indicator_21,
+            indicator_21.spot.close() * 14.0,
+            312.126,
+            (14.0, 14.0, 0.0),
+            312.126 / 14.0,
+            (
+                indicator_17.valuation,
+                indicator_17.nominal,
+                indicator_17.nominal,
+            ),
+        );
     }
 }
