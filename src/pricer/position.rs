@@ -350,6 +350,12 @@ mod tests {
             .positions
             .get(0)
             .unwrap();
+        let indicator_20 = portfolio_indicators
+            .get(3)
+            .unwrap()
+            .positions
+            .get(0)
+            .unwrap();
         let indicator_21 = portfolio_indicators
             .get(4)
             .unwrap()
@@ -390,9 +396,9 @@ mod tests {
             (14.0, 14.0, 0.0),
             312.126 / 14.0,
             (
-                indicator_17.valuation,
-                indicator_17.nominal,
-                indicator_17.nominal,
+                indicator_20.valuation,
+                indicator_20.valuation,
+                indicator_21.nominal,
             ),
         );
     }
