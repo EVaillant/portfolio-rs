@@ -1,6 +1,7 @@
 use super::Output;
 use crate::alias::Date;
 use crate::error::Error;
+use crate::marketdata::Instrument;
 use crate::portfolio::Portfolio;
 use crate::pricer::{HeatMapItem, PortfolioIndicators};
 use log::debug;
@@ -346,39 +347,40 @@ impl<'a> OdsOutput<'a> {
             sheet.set_col_cellstyle(i, &currency_style_ref);
         }
 
-        let mut row = 1;
-        for position in self.portfolio.positions.iter() {
-            for trade in position.trades.iter() {
-                if trade.date.date() > self.indicators.end {
-                    continue;
-                }
-                if trade.date.date() < self.indicators.begin {
-                    continue;
-                }
-                sheet.set_value(row, 0, trade.date);
-                sheet.set_value(row, 1, &position.instrument.name);
-                sheet.set_value(row, 2, trade.quantity);
-                sheet.set_value(row, 3, format!("{}", trade.way));
-                sheet.set_value(
-                    row,
-                    4,
-                    currency!(
-                        &position.instrument.currency.name,
-                        trade.price + trade.tax / trade.quantity
-                    ),
-                );
-                sheet.set_value(
-                    row,
-                    5,
-                    currency!(&position.instrument.currency.name, trade.price),
-                );
-                sheet.set_value(
-                    row,
-                    6,
-                    currency!(&position.instrument.currency.name, trade.tax),
-                );
-                row += 1;
-            }
+        for (row, (instrument, trade)) in self
+            .portfolio
+            .positions
+            .iter()
+            .flat_map(|position| {
+                position
+                    .trades
+                    .iter()
+                    .filter(|trade| {
+                        (trade.date.date() < self.indicators.end)
+                            && (trade.date.date() > self.indicators.begin)
+                            && self
+                                .filter_indicators
+                                .map_or(true, |date| date < trade.date.date())
+                    })
+                    .map(|trade| (&position.instrument, trade))
+            })
+            .enumerate()
+        {
+            let row = 1 + row as u32;
+            sheet.set_value(row, 0, trade.date);
+            sheet.set_value(row, 1, &instrument.name);
+            sheet.set_value(row, 2, trade.quantity);
+            sheet.set_value(row, 3, format!("{}", trade.way));
+            sheet.set_value(
+                row,
+                4,
+                currency!(
+                    &instrument.currency.name,
+                    trade.price + trade.tax / trade.quantity
+                ),
+            );
+            sheet.set_value(row, 5, currency!(&instrument.currency.name, trade.price));
+            sheet.set_value(row, 6, currency!(&instrument.currency.name, trade.tax))
         }
 
         self.add_sheet(sheet);
