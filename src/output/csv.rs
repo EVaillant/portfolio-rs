@@ -1,4 +1,5 @@
 use super::Output;
+use crate::alias::Date;
 use crate::error::Error;
 use crate::portfolio::Portfolio;
 use crate::pricer::{HeatMapItem, PortfolioIndicators};
@@ -26,6 +27,7 @@ pub struct CsvOutput<'a> {
     output_dir: String,
     portfolio: &'a Portfolio,
     indicators: &'a PortfolioIndicators,
+    filter_indicators: &'a Option<Date>,
 }
 
 impl<'a> CsvOutput<'a> {
@@ -33,11 +35,13 @@ impl<'a> CsvOutput<'a> {
         output_dir: &str,
         portfolio: &'a Portfolio,
         indicators: &'a PortfolioIndicators,
+        filter_indicators: &'a Option<Date>,
     ) -> Self {
         Self {
             output_dir: output_dir.to_string(),
             portfolio,
             indicators,
+            filter_indicators,
         }
     }
 
@@ -121,7 +125,15 @@ impl<'a> CsvOutput<'a> {
         output_stream.write_all(
             "Date;Cash;Incoming Transfert;Outcoming Transfert;Valuation;Nominal;Dividends;Tax;P&L(%);P&L Daily(%);P&L Weekly(%),P&L Monthly(%);P&L Yearly(%);P&L for 3 Months(%);P&L for one Year(%);P&L;P&L Daily;P&L Weekly;P&L Monthly;P&L Yearly;P&L for 3 Months;P&L for one Year;Volatility 3M;Volatility 1Y;Earning;Earning + Valuation\n".as_bytes(),
         )?;
+        let mut have_line = false;
         for portfolio_indicator in self.indicators.portfolios.iter() {
+            if self
+                .filter_indicators
+                .map_or(false, |date| date > portfolio_indicator.date)
+            {
+                continue;
+            }
+            have_line = true;
             output_stream.write_all(
                 format!(
                     "{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{}\n",
@@ -155,6 +167,11 @@ impl<'a> CsvOutput<'a> {
                 .as_bytes(),
             )?;
         }
+
+        if !have_line {
+            std::fs::remove_file(filename)?;
+        }
+
         Ok(())
     }
 
@@ -167,7 +184,15 @@ impl<'a> CsvOutput<'a> {
         output_stream.write_all(
           "Date;Instrument;Spot(Close);Quantity;Unit Price;Valuation;Nominal;Dividends;Tax;P&L(%);P&L Daily(%);P&L Weekly(%);P&L Monthly(%);P&L Yearly(%);P&L for 3 Months(%);P&L for one Year(%);P&L;P&L Daily;P&L Weekly;P&L Monthly;P&L Yearly;P&L for 3 Months;P&L for one Year;Volatility 3M;Volatility 1Y;Earning;Earning + Valuation\n".as_bytes(),
         )?;
+        let mut have_line = false;
         for position_indicator in self.indicators.by_instrument_name(instrument_name) {
+            if self
+                .filter_indicators
+                .map_or(false, |date| date > position_indicator.date)
+            {
+                continue;
+            }
+            have_line = true;
             output_stream.write_all(
                 format!(
                     "{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{}\n",
@@ -202,6 +227,11 @@ impl<'a> CsvOutput<'a> {
                 .as_bytes(),
             )?;
         }
+
+        if !have_line {
+            std::fs::remove_file(filename)?;
+        }
+
         Ok(())
     }
 }

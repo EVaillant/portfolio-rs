@@ -141,6 +141,10 @@ impl Requester for YahooRequester {
             begin.format("%Y-%m-%d"),
             end.format("%Y-%m-%d")
         );
+        let end = end
+            .checked_add_days(chrono::Days::new(1))
+            .ok_or_else(|| Error::new_historical(format!("unable to compute next day {}", end)))?;
+
         let ticker_yahoo = instrument.ticker_yahoo.as_ref().ok_or_else(|| {
             Error::new_historical(format!("missing yahoo ticker on {}", instrument.name))
         })?;

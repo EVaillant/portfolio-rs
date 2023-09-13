@@ -13,6 +13,7 @@ mod portfolio;
 mod pricer;
 mod referential;
 
+use alias::Date;
 use historical::{HistoricalData, NullRequester, Requester, YahooRequester};
 use output::{CsvOutput, OdsOutput, Output};
 use persistence::SQLitePersistance;
@@ -82,6 +83,22 @@ struct Args {
     /// pricing date format YYYY-MM-DD
     #[clap(default_value_t = String::from("now"), short = 'd', long, value_parser)]
     pricing_date: String,
+
+    /// filter output indicator(s)
+    #[clap(short = 'f', long, value_parser = parse_indicators_filter)]
+    indicators_filter: Option<Date>,
+}
+
+fn parse_indicators_filter(arg: &str) -> Result<Date, clap::Error> {
+    let days = chrono::naive::Days::new(
+        arg.parse()
+            .expect("unable to parse to int indicators filter"),
+    );
+    let previous_date = chrono::Utc::now()
+        .date_naive()
+        .checked_sub_days(days)
+        .expect("unable to compute indicators filter");
+    Ok(previous_date)
 }
 
 fn make_requester(source: SpotSource) -> Result<Box<dyn Requester>, Error> {
@@ -146,11 +163,13 @@ fn main() -> Result<(), Error> {
             &args.output_dir,
             &portfolio,
             &portfolio_indicators,
+            &args.indicators_filter,
         )),
         OutputType::Ods => Box::new(OdsOutput::new(
             &args.output_dir,
             &portfolio,
             &portfolio_indicators,
+            &args.indicators_filter,
         )?),
     };
     output.write_indicators()?;

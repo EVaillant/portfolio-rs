@@ -1,4 +1,5 @@
 use super::Output;
+use crate::alias::Date;
 use crate::error::Error;
 use crate::portfolio::Portfolio;
 use crate::pricer::{HeatMapItem, PortfolioIndicators};
@@ -94,6 +95,7 @@ pub struct OdsOutput<'a> {
     work_book: WorkBook,
     portfolio: &'a Portfolio,
     indicators: &'a PortfolioIndicators,
+    filter_indicators: &'a Option<Date>,
 }
 
 impl<'a> OdsOutput<'a> {
@@ -101,6 +103,7 @@ impl<'a> OdsOutput<'a> {
         output_dir: &str,
         portfolio: &'a Portfolio,
         indicators: &'a PortfolioIndicators,
+        filter_indicators: &'a Option<Date>,
     ) -> Result<Self, Error> {
         let output_filename = format!("{}/{}.ods", output_dir, portfolio.name);
         let path = std::path::Path::new(&output_filename);
@@ -114,6 +117,7 @@ impl<'a> OdsOutput<'a> {
             work_book,
             portfolio,
             indicators,
+            filter_indicators,
         })
     }
 
@@ -127,6 +131,16 @@ impl<'a> OdsOutput<'a> {
             }
         }
         self.work_book.push_sheet(sheet);
+    }
+
+    fn remove_sheet(&mut self, name: &str) {
+        for i in 0..self.work_book.num_sheets() {
+            let i_sheet = self.work_book.sheet(i);
+            if i_sheet.name() == name {
+                self.work_book.remove_sheet(i);
+                return;
+            }
+        }
     }
 
     fn save(&mut self) -> Result<(), Error> {
@@ -348,7 +362,10 @@ impl<'a> OdsOutput<'a> {
                 sheet.set_value(
                     row,
                     4,
-                    currency!(&position.instrument.currency.name, trade.price + trade.tax),
+                    currency!(
+                        &position.instrument.currency.name,
+                        trade.price + trade.tax / trade.quantity
+                    ),
                 );
                 sheet.set_value(
                     row,
@@ -414,7 +431,15 @@ impl<'a> OdsOutput<'a> {
             sheet.set_col_cellstyle(i, &currency_style_ref);
         }
 
-        for (i, portfolio_indicator) in self.indicators.portfolios.iter().enumerate() {
+        let mut have_line = false;
+        for (i, portfolio_indicator) in self
+            .indicators
+            .portfolios
+            .iter()
+            .filter(|item| self.filter_indicators.map_or(true, |date| date < item.date))
+            .enumerate()
+        {
+            have_line = true;
             sheet.set_value(1 + i as u32, 0, portfolio_indicator.date);
             sheet.set_value(
                 1 + i as u32,
@@ -446,7 +471,12 @@ impl<'a> OdsOutput<'a> {
             );
         }
 
-        self.add_sheet(sheet);
+        if have_line {
+            self.add_sheet(sheet);
+        } else {
+            self.remove_sheet(sheet.name());
+        }
+
         Ok(())
     }
 
@@ -492,12 +522,16 @@ impl<'a> OdsOutput<'a> {
         sheet.set_col_cellstyle(0, &date_style_ref);
 
         let mut defined_currency_col = false;
+        let mut have_line = false;
         for (i, position_indicator) in self
             .indicators
             .by_instrument_name(instrument_name)
             .iter()
+            .filter(|item| self.filter_indicators.map_or(true, |date| date < item.date))
             .enumerate()
         {
+            have_line = true;
+
             if !defined_currency_col {
                 let currency_style_ref =
                     self.get_currency_style(&position_indicator.instrument.currency.name)?;
@@ -527,7 +561,12 @@ impl<'a> OdsOutput<'a> {
             );
         }
 
-        self.add_sheet(sheet);
+        if have_line {
+            self.add_sheet(sheet);
+        } else {
+            self.remove_sheet(sheet.name());
+        }
+
         Ok(())
     }
 
