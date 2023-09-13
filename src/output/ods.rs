@@ -1,7 +1,6 @@
 use super::Output;
 use crate::alias::Date;
 use crate::error::Error;
-use crate::marketdata::Instrument;
 use crate::portfolio::Portfolio;
 use crate::pricer::{HeatMapItem, PortfolioIndicators};
 use log::debug;
