@@ -185,8 +185,16 @@ impl PortfolioIndicators {
     {
         let mut data = Vec::new();
         let mut it = begin;
+        let mut pnl_accumulator = Default::default();
+        let mut pnl_accumulator_by_position = Default::default();
         while it <= end {
-            let value = PortfolioIndicator::from_portfolio(portfolio, it, spot_provider, &data);
+            let value = PortfolioIndicator::from_portfolio(
+                portfolio,
+                it,
+                spot_provider,
+                &mut pnl_accumulator,
+                &mut pnl_accumulator_by_position,
+            );
             if !value.positions.is_empty() {
                 data.push(value);
             } else {

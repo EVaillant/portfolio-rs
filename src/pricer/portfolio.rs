@@ -1,5 +1,5 @@
 use super::position::PositionIndicator;
-use super::tools::{make_pnls, make_volatilities, Pnl};
+use super::tools::{Pnl, PnlAccumulator};
 use crate::alias::Date;
 use crate::historical::Provider;
 use crate::portfolio::{CashVariationSource, Portfolio};
@@ -12,6 +12,7 @@ pub struct PortfolioIndicator {
     pub positions: Vec<PositionIndicator>,
     pub valuation: f64,
     pub nominal: f64,
+    pub cashflow: f64,
     pub dividends: f64,
     pub tax: f64,
     pub pnl_current: Pnl,
@@ -35,53 +36,38 @@ impl PortfolioIndicator {
         portfolio: &Portfolio,
         date: Date,
         spot_provider: &mut P,
-        previous_value: &[PortfolioIndicator],
+        pnl_accumulator: &mut PnlAccumulator,
+        pnl_accumulator_by_instrument: &mut HashMap<String, PnlAccumulator>,
     ) -> PortfolioIndicator
     where
         P: Provider,
     {
         debug!("price portfolio at {}", date);
-        let positions =
-            PortfolioIndicator::make_positions_(portfolio, date, spot_provider, previous_value);
-
-        let (valuation, nominal, dividends, tax, earning, earning_latent) = positions.iter().fold(
-            (0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
-            |(valuation, nominal, dividends, tax, earning, earning_latent), position_indicator| {
-                (
-                    valuation + position_indicator.valuation,
-                    nominal + position_indicator.nominal,
-                    dividends + position_indicator.dividends,
-                    tax + position_indicator.tax,
-                    earning + position_indicator.earning,
-                    earning_latent + position_indicator.earning_latent,
-                )
-            },
+        let positions = PortfolioIndicator::make_positions_(
+            portfolio,
+            date,
+            spot_provider,
+            pnl_accumulator_by_instrument,
         );
 
-        let (
-            pnl_current,
-            pnl_daily,
-            pnl_weekly,
-            pnl_monthly,
-            pnl_yearly,
-            pnl_for_3_months,
-            pnl_for_1_year,
-        ) = make_pnls(date, nominal, valuation, |date| {
-            previous_value
-                .iter()
-                .find(|item| item.date >= date)
-                .map(|item| (item.nominal, item.valuation))
-        });
+        let (valuation, nominal, cashflow, dividends, tax, earning, earning_latent) =
+            positions.iter().fold(
+                (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+                |(valuation, nominal, cashflow, dividends, tax, earning, earning_latent),
+                 position_indicator| {
+                    (
+                        valuation + position_indicator.valuation,
+                        nominal + position_indicator.nominal,
+                        cashflow + position_indicator.cashflow,
+                        dividends + position_indicator.dividends,
+                        tax + position_indicator.tax,
+                        earning + position_indicator.earning,
+                        earning_latent + position_indicator.earning_latent,
+                    )
+                },
+            );
 
-        let (volatility_3_month, volatility_1_year) = make_volatilities(date, |date| {
-            let mut ret = previous_value
-                .iter()
-                .filter(|item| item.date >= date)
-                .map(|item| item.pnl_current.value_pct)
-                .collect::<Vec<_>>();
-            ret.push(pnl_current.value_pct);
-            ret
-        });
+        pnl_accumulator.append(date, cashflow, valuation);
 
         let incoming_transfer = portfolio
             .cash
@@ -120,17 +106,18 @@ impl PortfolioIndicator {
                 .collect(),
             valuation,
             nominal,
+            cashflow,
             dividends,
             tax,
-            pnl_current,
-            pnl_daily,
-            pnl_weekly,
-            pnl_monthly,
-            pnl_yearly,
-            pnl_for_3_months,
-            pnl_for_1_year,
-            volatility_3_month,
-            volatility_1_year,
+            pnl_current: pnl_accumulator.global,
+            pnl_daily: pnl_accumulator.daily,
+            pnl_weekly: pnl_accumulator.weekly,
+            pnl_monthly: pnl_accumulator.monthly,
+            pnl_yearly: pnl_accumulator.yearly,
+            pnl_for_3_months: pnl_accumulator.for_3_months,
+            pnl_for_1_year: pnl_accumulator.for_1_year,
+            volatility_3_month: pnl_accumulator.volatility_3_month,
+            volatility_1_year: pnl_accumulator.volatility_1_year,
             earning,
             earning_latent,
             incoming_transfer,
@@ -189,7 +176,7 @@ impl PortfolioIndicator {
         portfolio: &Portfolio,
         date: Date,
         spot_provider: &mut P,
-        previous_value: &[PortfolioIndicator],
+        pnl_accumulator_by_instrument: &mut HashMap<String, PnlAccumulator>,
     ) -> Vec<PositionIndicator>
     where
         P: Provider,
@@ -209,8 +196,15 @@ impl PortfolioIndicator {
                 continue;
             }
             if let Some(spot) = spot_provider.latest(&position.instrument, date) {
-                let value = PositionIndicator::from_position(position, date, spot, previous_value);
-                data.push(value);
+                let value = PositionIndicator::from_position(
+                    position,
+                    date,
+                    spot,
+                    pnl_accumulator_by_instrument,
+                );
+                if !value.is_already_close {
+                    data.push(value);
+                }
             } else {
                 error!(
                     "no spot on {} at {} and before skip position pricing",

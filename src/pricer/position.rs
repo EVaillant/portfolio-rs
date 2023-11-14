@@ -1,9 +1,9 @@
-use super::tools::{make_pnls, make_volatilities, Pnl};
-use super::PortfolioIndicator;
+use super::tools::{Pnl, PnlAccumulator};
 use crate::alias::Date;
 use crate::historical::DataFrame;
 use crate::marketdata::Instrument;
 use crate::portfolio::{Position, Way};
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use log::debug;
@@ -18,6 +18,7 @@ pub struct PositionIndicator {
     pub unit_price: f64,
     pub valuation: f64,
     pub nominal: f64,
+    pub cashflow: f64,
     pub dividends: f64,
     pub tax: f64,
     pub pnl_current: Pnl,
@@ -39,7 +40,7 @@ impl PositionIndicator {
         position: &Position,
         date: Date,
         spot: &DataFrame,
-        previous_value: &[PortfolioIndicator],
+        pnl_accumulator_by_position: &mut HashMap<String, PnlAccumulator>,
     ) -> PositionIndicator {
         debug!(
             "price position {} at {} with spot:{}",
@@ -53,6 +54,19 @@ impl PositionIndicator {
 
         let valuation = spot.close() * quantity;
         let nominal = unit_price * quantity;
+
+        let cashflow = position
+            .trades
+            .iter()
+            .filter(|trade| trade.date.date() == date)
+            .map(|trade| {
+                let way = match trade.way {
+                    Way::Sell => -1.0,
+                    Way::Buy => 1.0,
+                };
+                way * trade.quantity * trade.price
+            })
+            .sum();
 
         let dividends = position
             .instrument
@@ -73,60 +87,16 @@ impl PositionIndicator {
             })
             .unwrap_or_else(|| 0.0);
 
-        let (
-            pnl_current,
-            pnl_daily,
-            pnl_weekly,
-            pnl_monthly,
-            pnl_yearly,
-            pnl_for_3_months,
-            pnl_for_1_year,
-        ) = make_pnls(date, nominal, valuation, |date| {
-            previous_value
-                .iter()
-                .find(|item| {
-                    item.date >= date
-                        && item
-                            .positions
-                            .iter()
-                            .any(|item_postion| item_postion.instrument == position.instrument)
-                })
-                .and_then(|item| {
-                    item.positions
-                        .iter()
-                        .find(|item_postion| item_postion.instrument == position.instrument)
-                })
-                .map(|item| {
-                    if item.date == date {
-                        (item.nominal, item.valuation)
-                    } else {
-                        (item.nominal, item.nominal)
-                    }
-                })
-        });
-
-        let (volatility_3_month, volatility_1_year) = make_volatilities(date, |date| {
-            let mut ret = previous_value
-                .iter()
-                .filter(|item| item.date >= date)
-                .map(|item| {
-                    item.positions
-                        .iter()
-                        .find(|item_position| item_position.instrument == position.instrument)
-                })
-                .filter(Option::is_some)
-                .map(|item| item.unwrap().pnl_current.value_pct)
-                .collect::<Vec<_>>();
-            ret.push(pnl_current.value_pct);
-            ret
-        });
-
         let is_already_close = quantity.abs() < 1e-7
-            && position
+            && !position
                 .trades
-                .last()
-                .map(|trade| trade.date.date() < date)
-                .unwrap_or(false);
+                .iter()
+                .any(|trade| trade.date.date() == date);
+
+        let pnl_accumulator = pnl_accumulator_by_position
+            .entry(position.instrument.name.to_string())
+            .or_default();
+        pnl_accumulator.append(date, cashflow, valuation);
 
         let earning = dividends
             + position
@@ -152,17 +122,18 @@ impl PositionIndicator {
             unit_price,
             valuation,
             nominal,
+            cashflow,
             dividends,
             tax,
-            pnl_current,
-            pnl_daily,
-            pnl_weekly,
-            pnl_monthly,
-            pnl_yearly,
-            pnl_for_3_months,
-            pnl_for_1_year,
-            volatility_3_month,
-            volatility_1_year,
+            pnl_current: pnl_accumulator.global,
+            pnl_daily: pnl_accumulator.daily,
+            pnl_weekly: pnl_accumulator.weekly,
+            pnl_monthly: pnl_accumulator.monthly,
+            pnl_yearly: pnl_accumulator.yearly,
+            pnl_for_3_months: pnl_accumulator.for_3_months,
+            pnl_for_1_year: pnl_accumulator.for_1_year,
+            volatility_3_month: pnl_accumulator.volatility_3_month,
+            volatility_1_year: pnl_accumulator.volatility_1_year,
             earning,
             earning_latent,
             is_already_close,
@@ -207,6 +178,7 @@ mod tests {
     use super::*;
     use crate::marketdata::{Currency, Instrument, Market};
     use crate::portfolio::{Position, Trade, Way};
+    use crate::pricer::PortfolioIndicator;
     use assert_float_eq::*;
 
     fn make_instrument_(name: &str) -> Rc<Instrument> {
@@ -237,10 +209,10 @@ mod tests {
         position: &Position,
         date: Date,
         spot: f64,
-        previous_value: &[PortfolioIndicator],
+        pnl_accumulator_by_instrument: &mut HashMap<String, PnlAccumulator>,
     ) -> PositionIndicator {
         let spot = DataFrame::new(date, spot, spot, spot, spot);
-        PositionIndicator::from_position(position, date, &spot, previous_value)
+        PositionIndicator::from_position(position, date, &spot, pnl_accumulator_by_instrument)
     }
 
     fn make_default_portfolio_indicator_(
@@ -297,7 +269,7 @@ mod tests {
             trades: Default::default(),
         };
         let date = chrono::NaiveDate::from_ymd_opt(2022, 3, 17).unwrap();
-        let indicator = make_indicator_(&position, date, 21.92, &Vec::new());
+        let indicator = make_indicator_(&position, date, 21.92, &mut Default::default());
         check_indicator_(&indicator, 0.0, 0.0, (0.0, 0.0, 0.0), 0.0, (0.0, 0.0, 0.0));
     }
 
@@ -318,6 +290,7 @@ mod tests {
         };
 
         let mut portfolio_indicators = Vec::new();
+        let mut pnl_accumulator_by_instrument = Default::default();
         let date = chrono::NaiveDate::from_ymd_opt(2022, 3, 17).unwrap();
         for (pos, spot) in [
             21.92, 22.41, 22.41, 22.41, 22.03, 22.55, 22.55, 22.53, 22.32, 22.32, 22.32, 22.35,
@@ -333,7 +306,7 @@ mod tests {
                 &position,
                 date,
                 *spot,
-                &portfolio_indicators,
+                &mut pnl_accumulator_by_instrument,
             ));
             portfolio_indicators.push(portfolio_indicator);
         }

@@ -120,7 +120,7 @@ impl YahooRequester {
             match result {
                 Ok(record) => data_frames.push(record.into()),
                 Err(error) => {
-                    warn!("invalid csv format ticker:{ticker} error:{error}");
+                    warn!("invalid csv format ticker:{ticker} error:{error} output:{output}");
                 }
             };
         }
