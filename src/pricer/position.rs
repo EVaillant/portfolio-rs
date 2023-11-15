@@ -229,34 +229,36 @@ mod tests {
         indicator: &PositionIndicator,
         valuation: f64,
         nominal: f64,
+        cashflow: f64,
         quantity: (f64, f64, f64),
         unit_price: f64,
-        ref_valuation: (f64, f64, f64),
+        previous_valuations: (f64, f64, f64, f64),
     ) {
         assert_float_absolute_eq!(indicator.valuation, valuation, 1e-7);
         assert_float_absolute_eq!(indicator.nominal, nominal, 1e-7);
+        assert_float_absolute_eq!(indicator.cashflow, cashflow, 1e-7);
         assert_float_absolute_eq!(indicator.quantity, quantity.0, 1e-7);
         assert_float_absolute_eq!(indicator.quantity_buy, quantity.1, 1e-7);
         assert_float_absolute_eq!(indicator.quantity_sell, quantity.2, 1e-7);
         assert_float_absolute_eq!(indicator.unit_price, unit_price, 1e-7);
         assert_float_absolute_eq!(
-            indicator.pnl_current.value,
-            indicator.valuation - indicator.nominal,
+            indicator.pnl_daily.value,
+            indicator.valuation - (cashflow + previous_valuations.0),
             1e-7
         );
         assert_float_absolute_eq!(
-            indicator.pnl_daily.value,
-            indicator.valuation - ref_valuation.0,
+            indicator.pnl_current.value,
+            indicator.pnl_daily.value + previous_valuations.1,
             1e-7
         );
         assert_float_absolute_eq!(
             indicator.pnl_weekly.value,
-            indicator.valuation - ref_valuation.1,
+            indicator.pnl_daily.value + previous_valuations.2,
             1e-7
         );
         assert_float_absolute_eq!(
             indicator.pnl_monthly.value,
-            indicator.valuation - ref_valuation.2,
+            indicator.pnl_daily.value + previous_valuations.3,
             1e-7
         );
     }
@@ -270,7 +272,15 @@ mod tests {
         };
         let date = chrono::NaiveDate::from_ymd_opt(2022, 3, 17).unwrap();
         let indicator = make_indicator_(&position, date, 21.92, &mut Default::default());
-        check_indicator_(&indicator, 0.0, 0.0, (0.0, 0.0, 0.0), 0.0, (0.0, 0.0, 0.0));
+        check_indicator_(
+            &indicator,
+            0.0,
+            0.0,
+            0.0,
+            (0.0, 0.0, 0.0),
+            0.0,
+            (0.0, 0.0, 0.0, 0.0),
+        );
     }
 
     #[test]
@@ -340,25 +350,24 @@ mod tests {
             indicator_17,
             indicator_17.spot.close() * 14.0,
             312.126,
+            14.0 * 22.184,
             (14.0, 14.0, 0.0),
             312.126 / 14.0,
-            (
-                indicator_17.nominal,
-                indicator_17.nominal,
-                indicator_17.nominal,
-            ),
+            (0.0, 0.0, 0.0, 0.0),
         );
 
         check_indicator_(
             indicator_18,
             indicator_18.spot.close() * 14.0,
             312.126,
+            0.0,
             (14.0, 14.0, 0.0),
             312.126 / 14.0,
             (
                 indicator_17.valuation,
-                indicator_17.nominal,
-                indicator_17.nominal,
+                indicator_17.pnl_current.value,
+                indicator_17.pnl_weekly.value,
+                indicator_17.pnl_monthly.value,
             ),
         );
 
@@ -366,12 +375,14 @@ mod tests {
             indicator_21,
             indicator_21.spot.close() * 14.0,
             312.126,
+            0.0,
             (14.0, 14.0, 0.0),
             312.126 / 14.0,
             (
                 indicator_20.valuation,
-                indicator_20.valuation,
-                indicator_21.nominal,
+                indicator_20.pnl_current.value,
+                0.0,
+                indicator_20.pnl_monthly.value,
             ),
         );
     }
