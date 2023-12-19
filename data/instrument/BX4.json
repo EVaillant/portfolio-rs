@@ -1,0 +1,10 @@
+{
+  "name" : "BX4",
+  "isin" : "FR0010411884",
+  "description" : "Amundi CAC 40 Daily (-2x) Inverse UE Acc",
+  "market" : "EPA",
+  "currency" : "EUR",
+  "region" : "Europe",
+  "fund_category" : "Equity France Bear",
+  "ticker_yahoo" : "PX4.PA"
+}
