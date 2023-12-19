@@ -5,7 +5,7 @@ pub enum Error {
     Referential(String),
     Output(String),
     Io(std::io::Error),
-    Ods(spreadsheet_ods::error::OdsError),
+    Ods(spreadsheet_ods::OdsError),
     Rusqlite(rusqlite::Error),
     SerdeJson(serde_json::Error),
 }
@@ -40,8 +40,8 @@ impl From<rusqlite::Error> for Error {
     }
 }
 
-impl From<spreadsheet_ods::error::OdsError> for Error {
-    fn from(error: spreadsheet_ods::error::OdsError) -> Self {
+impl From<spreadsheet_ods::OdsError> for Error {
+    fn from(error: spreadsheet_ods::OdsError) -> Self {
         Error::Ods(error)
     }
 }
