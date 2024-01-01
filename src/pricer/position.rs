@@ -64,7 +64,7 @@ impl PositionIndicator {
                     Way::Sell => -1.0,
                     Way::Buy => 1.0,
                 };
-                way * trade.quantity * trade.price
+                way * trade.quantity * trade.price + trade.tax
             })
             .sum();
 
@@ -97,6 +97,12 @@ impl PositionIndicator {
             .entry(position.instrument.name.to_string())
             .or_default();
         pnl_accumulator.append(date, cashflow, valuation);
+        dbg!(
+            date,
+            position.instrument.name.to_string(),
+            cashflow,
+            valuation
+        );
 
         let earning = dividends
             + position
@@ -322,28 +328,28 @@ mod tests {
         }
 
         let indicator_17 = portfolio_indicators
-            .get(0)
+            .first()
             .unwrap()
             .positions
-            .get(0)
+            .first()
             .unwrap();
         let indicator_18 = portfolio_indicators
             .get(1)
             .unwrap()
             .positions
-            .get(0)
+            .first()
             .unwrap();
         let indicator_20 = portfolio_indicators
             .get(3)
             .unwrap()
             .positions
-            .get(0)
+            .first()
             .unwrap();
         let indicator_21 = portfolio_indicators
             .get(4)
             .unwrap()
             .positions
-            .get(0)
+            .first()
             .unwrap();
 
         check_indicator_(

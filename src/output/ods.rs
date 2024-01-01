@@ -106,15 +106,9 @@ impl<'a> OdsOutput<'a> {
         filter_indicators: &'a Option<Date>,
     ) -> Result<Self, Error> {
         let output_filename = format!("{}/{}.ods", output_dir, portfolio.name);
-        let path = std::path::Path::new(&output_filename);
-        let work_book = if path.exists() {
-            spreadsheet_ods::read_ods(path)?
-        } else {
-            WorkBook::new_empty()
-        };
         Ok(Self {
             output_filename,
-            work_book,
+            work_book: WorkBook::new_empty(),
             portfolio,
             indicators,
             filter_indicators,
