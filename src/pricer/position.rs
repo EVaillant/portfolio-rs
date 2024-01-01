@@ -97,12 +97,6 @@ impl PositionIndicator {
             .entry(position.instrument.name.to_string())
             .or_default();
         pnl_accumulator.append(date, cashflow, valuation);
-        dbg!(
-            date,
-            position.instrument.name.to_string(),
-            cashflow,
-            valuation
-        );
 
         let earning = dividends
             + position
