@@ -13,6 +13,6 @@ serde_json = "1.0"
 reqwest = {version = "0.11.11", features = ["blocking", "cookies"] }
 regex = "1.6.0"
 csv = "1.1"
-rusqlite = "0.30.0"
-spreadsheet-ods = "0.21"
+rusqlite = "0.31.0"
+spreadsheet-ods = "0.22.1"
 assert_float_eq = "1.1.3"
