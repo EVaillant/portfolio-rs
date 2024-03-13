@@ -104,7 +104,7 @@ impl YahooRequester {
         begin: Date,
         end: Date,
     ) -> Result<Vec<DataFrame>, Error> {
-        let output = self.reqwest_client.get(format!("https://query1.finance.yahoo.com/v7/finance/download/{}?period1={}&period2={}&interval=1d&events=history&crumb={}", ticker, begin.and_hms_opt(0, 0, 0).unwrap().timestamp(), end.and_hms_opt(0, 0, 0).unwrap().timestamp(), crumb))
+        let output = self.reqwest_client.get(format!("https://query1.finance.yahoo.com/v7/finance/download/{}?period1={}&period2={}&interval=1d&events=history&crumb={}", ticker, begin.and_hms_opt(0, 0, 0).unwrap().and_utc().timestamp(), end.and_hms_opt(0, 0, 0).unwrap().and_utc().timestamp(), crumb))
         .send()
         .map_err(|error| {
             Error::new_historical(format!("failed to request historic ticker:{ticker} error:{error}"))
