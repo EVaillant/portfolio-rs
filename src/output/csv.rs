@@ -2,7 +2,10 @@ use super::Output;
 use crate::alias::Date;
 use crate::error::Error;
 use crate::portfolio::Portfolio;
-use crate::pricer::{PortfolioIndicators, PositionIndicators};
+use crate::pricer::{
+    InstrumentIndicator, PortfolioIndicators, PositionIndicators, RegionIndicator,
+    RegionIndicatorInstrument,
+};
 
 use std::fs::File;
 use std::io::Write;
@@ -46,44 +49,61 @@ impl<'a> CsvOutput<'a> {
         }
     }
 
-    /*fn write_distribution_by_region(&self, filename: &str) -> Result<(), Error> {
+    fn write_distribution_by_region(
+        &self,
+        filename: &str,
+        indicators: &Vec<RegionIndicator>,
+    ) -> Result<(), Error> {
         let mut output_stream = File::create(filename)?;
-        if let Some(portfolio) = self.indicators.portfolios.last() {
-            let data = portfolio.make_distribution_by_region();
-            for (region_name, pct) in data {
-                output_stream.write_all(format!("{};{}\n", region_name, pct).as_bytes())?;
-            }
-        }
-        Ok(())
-    }
-
-    fn write_distribution_global_by_instrument(&self, filename: &str) -> Result<(), Error> {
-        let mut output_stream = File::create(filename)?;
-        if let Some(portfolio) = self.indicators.portfolios.last() {
-            let data = portfolio.make_distribution_global_by_instrument();
-            for (region_name, pct) in data {
-                output_stream.write_all(format!("{};{}\n", region_name, pct).as_bytes())?;
-            }
+        for indicator in indicators {
+            output_stream.write_all(
+                format!(
+                    "{};{}\n",
+                    indicator.region_name, indicator.valuation_percent
+                )
+                .as_bytes(),
+            )?;
         }
         Ok(())
     }
 
     fn write_distribution_by_instrument(
         &self,
-        region_name: &str,
         filename: &str,
+        indicators: &Vec<RegionIndicatorInstrument>,
     ) -> Result<(), Error> {
         let mut output_stream = File::create(filename)?;
-        if let Some(portfolio) = self.indicators.portfolios.last() {
-            let data = portfolio.make_distribution_by_instrument(region_name);
-            for (region_name, pct) in data {
-                output_stream.write_all(format!("{};{}\n", region_name, pct).as_bytes())?;
-            }
+        for indicator in indicators {
+            output_stream.write_all(
+                format!(
+                    "{};{}\n",
+                    indicator.instrument.name, indicator.valuation_percent
+                )
+                .as_bytes(),
+            )?;
         }
         Ok(())
     }
 
-    fn write_instrument_heat_map(
+    fn write_distribution_global_by_instrument(
+        &self,
+        filename: &str,
+        indicators: &Vec<InstrumentIndicator>,
+    ) -> Result<(), Error> {
+        let mut output_stream = File::create(filename)?;
+        for indicator in indicators {
+            output_stream.write_all(
+                format!(
+                    "{};{}\n",
+                    indicator.instrument.name, indicator.valuation_percent
+                )
+                .as_bytes(),
+            )?;
+        }
+        Ok(())
+    }
+
+    /*fn write_instrument_heat_map(
         &self,
         instrument_name: &str,
         filename: &str,
@@ -235,6 +255,29 @@ impl<'a> Output for CsvOutput<'a> {
             }
         }
 
+        if let Some(indicator) = self.indicators.portfolios.last() {
+            let region_indicators = RegionIndicator::from_portfolio(indicator);
+            let filename = format!(
+                "{}/distribution_by_region_{}.csv",
+                self.output_dir, self.portfolio.name
+            );
+            self.write_distribution_by_region(&filename, &region_indicators)?;
+            for region_indicator in region_indicators {
+                let filename = format!(
+                    "{}/distribution_{}_{}.csv",
+                    self.output_dir, self.portfolio.name, region_indicator.region_name
+                );
+                self.write_distribution_by_instrument(&filename, &region_indicator.instruments)?;
+            }
+
+            let instrument_indicators = InstrumentIndicator::from_portfolio(indicator);
+            let filename = format!(
+                "{}/distribution_global_{}.csv",
+                self.output_dir, self.portfolio.name
+            );
+            self.write_distribution_global_by_instrument(&filename, &instrument_indicators)?;
+        }
+
         /*let filename = format!("{}/heat_map_{}.csv", self.output_dir, self.portfolio.name);
         self.write_heat_map(&filename)?;
 
@@ -244,26 +287,6 @@ impl<'a> Output for CsvOutput<'a> {
                 self.output_dir, self.portfolio.name, instrument_name
             );
             self.write_instrument_heat_map(instrument_name, &filename)?;
-        }
-
-        let filename = format!(
-            "{}/distribution_by_region_{}.csv",
-            self.output_dir, self.portfolio.name
-        );
-        self.write_distribution_by_region(&filename)?;
-
-        let filename = format!(
-            "{}/distribution_global_{}.csv",
-            self.output_dir, self.portfolio.name
-        );
-        self.write_distribution_global_by_instrument(&filename)?;
-
-        for region_name in self.portfolio.get_region_name_list() {
-            let filename = format!(
-                "{}/distribution_{}_{}.csv",
-                self.output_dir, self.portfolio.name, region_name
-            );
-            self.write_distribution_by_instrument(region_name, &filename)?;
         }*/
 
         Ok(())
