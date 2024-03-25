@@ -53,11 +53,11 @@ impl Persistance for SQLitePersistance {
         for data in datas.iter() {
             stmt.execute((
                 &instrument.name,
-                data.date().to_string(),
-                data.open(),
-                data.close(),
-                data.high(),
-                data.low(),
+                data.date.to_string(),
+                data.open,
+                data.close,
+                data.high,
+                data.low,
             ))?;
         }
 
@@ -83,12 +83,12 @@ impl Persistance for SQLitePersistance {
         for item in rows {
             datas.push(item?);
         }
-        datas.sort_by(|left, right| left.date().cmp(right.date()));
+        datas.sort_by(|left, right| left.date.cmp(&right.date));
         let first = datas.first();
         let last = datas.last();
 
         match (first, last) {
-            (Some(value1), Some(value2)) => Ok(Some((*value1.date(), *value2.date(), datas))),
+            (Some(value1), Some(value2)) => Ok(Some((value1.date, value2.date, datas))),
             (_, _) => Ok(None),
         }
     }

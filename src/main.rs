@@ -15,7 +15,7 @@ mod referential;
 
 use alias::Date;
 use historical::{HistoricalData, NullRequester, Requester, YahooRequester};
-use output::{CsvOutput, OdsOutput, Output};
+use output::{CsvOutput /*, OdsOutput*/, Output};
 use persistence::SQLitePersistance;
 use pricer::PortfolioIndicators;
 use referential::Referential;
@@ -40,7 +40,7 @@ impl std::fmt::Display for SpotSource {
 #[derive(ValueEnum, Copy, Clone, Debug, PartialEq, Eq)]
 enum OutputType {
     Csv,
-    Ods,
+    //Ods,
 }
 
 impl std::fmt::Display for OutputType {
@@ -165,12 +165,12 @@ fn main() -> Result<(), Error> {
             &portfolio_indicators,
             &args.indicators_filter,
         )),
-        OutputType::Ods => Box::new(OdsOutput::new(
+        /*OutputType::Ods => Box::new(OdsOutput::new(
             &args.output_dir,
             &portfolio,
             &portfolio_indicators,
             &args.indicators_filter,
-        )?),
+        )?),*/
     };
     output.write_indicators()?;
     info!("write output done");

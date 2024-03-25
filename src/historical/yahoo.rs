@@ -158,8 +158,8 @@ impl Requester for YahooRequester {
             result_begin = Default::default();
             result_end = Default::default();
         } else {
-            result_begin = *result.first().unwrap().date();
-            result_end = *result.last().unwrap().date();
+            result_begin = result.first().unwrap().date;
+            result_end = result.last().unwrap().date;
         }
         info!("request historic data for {} done", instrument.name);
         Ok((result_begin, result_end, result))

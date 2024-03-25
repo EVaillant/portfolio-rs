@@ -10,11 +10,11 @@ pub use yahoo::*;
 
 #[derive(Copy, Clone)]
 pub struct DataFrame {
-    date: Date,
-    open: f64,
-    close: f64,
-    high: f64,
-    low: f64,
+    pub date: Date,
+    pub open: f64,
+    pub close: f64,
+    pub high: f64,
+    pub low: f64,
 }
 
 impl DataFrame {
@@ -27,31 +27,6 @@ impl DataFrame {
             high,
             low,
         }
-    }
-
-    #[inline]
-    pub fn date(&self) -> &Date {
-        &self.date
-    }
-
-    #[inline]
-    pub fn open(&self) -> f64 {
-        self.open
-    }
-
-    #[inline]
-    pub fn close(&self) -> f64 {
-        self.close
-    }
-
-    #[inline]
-    pub fn high(&self) -> f64 {
-        self.high
-    }
-
-    #[inline]
-    pub fn low(&self) -> f64 {
-        self.low
     }
 }
 
@@ -99,11 +74,11 @@ impl CacheInstrument {
     }
 
     fn get(&self, date: Date) -> Option<&DataFrame> {
-        self.data.iter().find(|item| *item.date() == date)
+        self.data.iter().find(|item| item.date == date)
     }
 
     fn latest(&self, date: Date) -> Option<&DataFrame> {
-        self.data.iter().rev().find(|item| *item.date() <= date)
+        self.data.iter().rev().find(|item| item.date <= date)
     }
 
     fn insert(&mut self, begin: Date, end: Date, mut data: Vec<DataFrame>) {
@@ -355,10 +330,10 @@ mod tests {
                 vec![make_dataframe_(2022, 4, 29), make_dataframe_(2022, 4, 30)],
             );
             assert_eq!(cache_instrument.data.len(), 4);
-            assert_eq!(*cache_instrument.data[0].date(), make_date_(2022, 4, 29));
-            assert_eq!(*cache_instrument.data[1].date(), make_date_(2022, 4, 30));
-            assert_eq!(*cache_instrument.data[2].date(), make_date_(2022, 5, 1));
-            assert_eq!(*cache_instrument.data[3].date(), make_date_(2022, 5, 2));
+            assert_eq!(cache_instrument.data[0].date, make_date_(2022, 4, 29));
+            assert_eq!(cache_instrument.data[1].date, make_date_(2022, 4, 30));
+            assert_eq!(cache_instrument.data[2].date, make_date_(2022, 5, 1));
+            assert_eq!(cache_instrument.data[3].date, make_date_(2022, 5, 2));
         }
         {
             let mut cache_instrument = CacheInstrument::new(
@@ -372,10 +347,10 @@ mod tests {
                 vec![make_dataframe_(2022, 5, 3), make_dataframe_(2022, 5, 4)],
             );
             assert_eq!(cache_instrument.data.len(), 4);
-            assert_eq!(*cache_instrument.data[0].date(), make_date_(2022, 5, 1));
-            assert_eq!(*cache_instrument.data[1].date(), make_date_(2022, 5, 2));
-            assert_eq!(*cache_instrument.data[2].date(), make_date_(2022, 5, 3));
-            assert_eq!(*cache_instrument.data[3].date(), make_date_(2022, 5, 4));
+            assert_eq!(cache_instrument.data[0].date, make_date_(2022, 5, 1));
+            assert_eq!(cache_instrument.data[1].date, make_date_(2022, 5, 2));
+            assert_eq!(cache_instrument.data[2].date, make_date_(2022, 5, 3));
+            assert_eq!(cache_instrument.data[3].date, make_date_(2022, 5, 4));
         }
         {
             let mut cache_instrument = CacheInstrument::new(
@@ -394,10 +369,10 @@ mod tests {
                 ],
             );
             assert_eq!(cache_instrument.data.len(), 4);
-            assert_eq!(*cache_instrument.data[0].date(), make_date_(2022, 4, 30));
-            assert_eq!(*cache_instrument.data[1].date(), make_date_(2022, 5, 1));
-            assert_eq!(*cache_instrument.data[2].date(), make_date_(2022, 5, 2));
-            assert_eq!(*cache_instrument.data[3].date(), make_date_(2022, 5, 3));
+            assert_eq!(cache_instrument.data[0].date, make_date_(2022, 4, 30));
+            assert_eq!(cache_instrument.data[1].date, make_date_(2022, 5, 1));
+            assert_eq!(cache_instrument.data[2].date, make_date_(2022, 5, 2));
+            assert_eq!(cache_instrument.data[3].date, make_date_(2022, 5, 3));
         }
     }
 
@@ -421,19 +396,19 @@ mod tests {
             let result = cache_instrument.latest(make_date_(2022, 1, 6));
             assert!(result.is_some());
             let dataframe = result.unwrap();
-            assert_eq!(*dataframe.date(), make_date_(2022, 1, 6));
+            assert_eq!(dataframe.date, make_date_(2022, 1, 6));
         }
         {
             let result = cache_instrument.latest(make_date_(2022, 1, 8));
             assert!(result.is_some());
             let dataframe = result.unwrap();
-            assert_eq!(*dataframe.date(), make_date_(2022, 1, 7));
+            assert_eq!(dataframe.date, make_date_(2022, 1, 7));
         }
         {
             let result = cache_instrument.latest(make_date_(2022, 1, 20));
             assert!(result.is_some());
             let dataframe = result.unwrap();
-            assert_eq!(*dataframe.date(), make_date_(2022, 1, 10));
+            assert_eq!(dataframe.date, make_date_(2022, 1, 10));
         }
     }
 

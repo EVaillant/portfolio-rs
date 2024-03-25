@@ -2,11 +2,12 @@ use super::Output;
 use crate::alias::Date;
 use crate::error::Error;
 use crate::portfolio::Portfolio;
-use crate::pricer::{HeatMapItem, PortfolioIndicators};
+use crate::pricer::{PortfolioIndicators, PositionIndicators};
 
 use std::fs::File;
 use std::io::Write;
 
+/*
 fn convert_to_cvs(year: i32, item: &HeatMapItem) -> String {
     let str_line = item
         .data()
@@ -21,7 +22,7 @@ fn convert_to_cvs(year: i32, item: &HeatMapItem) -> String {
         .collect::<Vec<_>>()
         .join(";");
     format!("{};{}\n", year, str_line)
-}
+}*/
 
 pub struct CsvOutput<'a> {
     output_dir: String,
@@ -45,7 +46,7 @@ impl<'a> CsvOutput<'a> {
         }
     }
 
-    fn write_distribution_by_region(&self, filename: &str) -> Result<(), Error> {
+    /*fn write_distribution_by_region(&self, filename: &str) -> Result<(), Error> {
         let mut output_stream = File::create(filename)?;
         if let Some(portfolio) = self.indicators.portfolios.last() {
             let data = portfolio.make_distribution_by_region();
@@ -118,12 +119,12 @@ impl<'a> CsvOutput<'a> {
         }
 
         Ok(())
-    }
+    }*/
 
     fn write_position_indicators(&self, filename: &str) -> Result<(), Error> {
         let mut output_stream = File::create(filename)?;
         output_stream.write_all(
-            "Date;Cash;Incoming Transfert;Outcoming Transfert;Valuation;Nominal;Dividends;Tax;P&L(%);P&L Daily(%);P&L Weekly(%),P&L Monthly(%);P&L Yearly(%);P&L for 3 Months(%);P&L for one Year(%);P&L;P&L Daily;P&L Weekly;P&L Monthly;P&L Yearly;P&L for 3 Months;P&L for one Year;Volatility 3M;Volatility 1Y;Earning;Earning + Valuation\n".as_bytes(),
+            "Date;Valuation;Nominal;Incoming Transfert;Outcoming Transfert;Cash;Dividends;Tax;P&L;P&L(%);TWR;Earning;Earning Latent\n".as_bytes(),
         )?;
         let mut have_line = false;
         for portfolio_indicator in self.indicators.portfolios.iter() {
@@ -136,31 +137,18 @@ impl<'a> CsvOutput<'a> {
             have_line = true;
             output_stream.write_all(
                 format!(
-                    "{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{}\n",
+                    "{};{};{};{};{};{};{};{};{};{};{};{};{}\n",
                     portfolio_indicator.date.format("%Y-%m-%d"),
-                    portfolio_indicator.cash,
-                    portfolio_indicator.incoming_transfer,
-                    portfolio_indicator.outcoming_transfer,
                     portfolio_indicator.valuation,
                     portfolio_indicator.nominal,
+                    portfolio_indicator.incoming_transfer,
+                    portfolio_indicator.outcoming_transfer,
+                    portfolio_indicator.cash,
                     portfolio_indicator.dividends,
                     portfolio_indicator.tax,
-                    portfolio_indicator.pnl_current.value_pct,
-                    portfolio_indicator.pnl_daily.value_pct,
-                    portfolio_indicator.pnl_weekly.value_pct,
-                    portfolio_indicator.pnl_monthly.value_pct,
-                    portfolio_indicator.pnl_yearly.value_pct,
-                    portfolio_indicator.pnl_for_3_months.value_pct,
-                    portfolio_indicator.pnl_for_1_year.value_pct,
-                    portfolio_indicator.pnl_current.value,
-                    portfolio_indicator.pnl_daily.value,
-                    portfolio_indicator.pnl_weekly.value,
-                    portfolio_indicator.pnl_monthly.value,
-                    portfolio_indicator.pnl_yearly.value,
-                    portfolio_indicator.pnl_for_3_months.value,
-                    portfolio_indicator.pnl_for_1_year.value,
-                    portfolio_indicator.volatility_3_month,
-                    portfolio_indicator.volatility_1_year,
+                    portfolio_indicator.pnl_currency,
+                    portfolio_indicator.pnl_percent,
+                    portfolio_indicator.twr,
                     portfolio_indicator.earning,
                     portfolio_indicator.earning_latent
                 )
@@ -177,15 +165,15 @@ impl<'a> CsvOutput<'a> {
 
     fn write_position_instrument_indicators(
         &self,
-        instrument_name: &str,
+        indicators: PositionIndicators,
         filename: &str,
     ) -> Result<(), Error> {
         let mut output_stream = File::create(filename)?;
         output_stream.write_all(
-          "Date;Instrument;Spot(Close);Quantity;Unit Price;Valuation;Nominal;Dividends;Tax;P&L(%);P&L Daily(%);P&L Weekly(%);P&L Monthly(%);P&L Yearly(%);P&L for 3 Months(%);P&L for one Year(%);P&L;P&L Daily;P&L Weekly;P&L Monthly;P&L Yearly;P&L for 3 Months;P&L for one Year;Volatility 3M;Volatility 1Y;Earning;Earning + Valuation\n".as_bytes(),
+          "Date;Instrument;Spot(Close);Quantity;Quantity Buy;Quantity Sell;Unit Price;Valuation;Nominal;Cashflow;Dividends;Tax;P&L;P&L(%);TWR;Earning;Earning Latent;Cost;Is Close\n".as_bytes(),
         )?;
         let mut have_line = false;
-        for position_indicator in self.indicators.by_instrument_name(instrument_name) {
+        for position_indicator in indicators.positions {
             if self
                 .filter_indicators
                 .map_or(false, |date| date > position_indicator.date)
@@ -195,34 +183,26 @@ impl<'a> CsvOutput<'a> {
             have_line = true;
             output_stream.write_all(
                 format!(
-                    "{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{}\n",
+                    "{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{}\n",
                     position_indicator.date.format("%Y-%m-%d"),
-                    instrument_name,
-                    position_indicator.spot.close(),
+                    position_indicator.instrument.name,
+                    position_indicator.spot.close,
                     position_indicator.quantity,
+                    position_indicator.quantity_buy,
+                    position_indicator.quantity_sell,
                     position_indicator.unit_price,
                     position_indicator.valuation,
                     position_indicator.nominal,
+                    position_indicator.cashflow,
                     position_indicator.dividends,
                     position_indicator.tax,
-                    position_indicator.pnl_current.value_pct,
-                    position_indicator.pnl_daily.value_pct,
-                    position_indicator.pnl_weekly.value_pct,
-                    position_indicator.pnl_monthly.value_pct,
-                    position_indicator.pnl_yearly.value_pct,
-                    position_indicator.pnl_for_3_months.value_pct,
-                    position_indicator.pnl_for_1_year.value_pct,
-                    position_indicator.pnl_current.value,
-                    position_indicator.pnl_daily.value,
-                    position_indicator.pnl_weekly.value,
-                    position_indicator.pnl_monthly.value,
-                    position_indicator.pnl_yearly.value,
-                    position_indicator.pnl_for_3_months.value,
-                    position_indicator.pnl_for_1_year.value,
-                    position_indicator.volatility_3_month,
-                    position_indicator.volatility_1_year,
+                    position_indicator.pnl_currency,
+                    position_indicator.pnl_percent,
+                    position_indicator.twr,
                     position_indicator.earning,
                     position_indicator.earning_latent,
+                    position_indicator.cost,
+                    position_indicator.is_close,
                 )
                 .as_bytes(),
             )?;
@@ -242,14 +222,20 @@ impl<'a> Output for CsvOutput<'a> {
         self.write_position_indicators(&filename)?;
 
         for instrument_name in self.portfolio.get_instrument_name_list() {
-            let filename = format!(
-                "{}/indicators_{}_{}.csv",
-                self.output_dir, self.portfolio.name, instrument_name
-            );
-            self.write_position_instrument_indicators(instrument_name, &filename)?;
+            for position_index in self.indicators.get_position_index_list(instrument_name) {
+                let filename = format!(
+                    "{}/indicators_{}_{}_{}.csv",
+                    self.output_dir, self.portfolio.name, instrument_name, position_index
+                );
+                self.write_position_instrument_indicators(
+                    self.indicators
+                        .get_position_indicators(instrument_name, position_index),
+                    &filename,
+                )?;
+            }
         }
 
-        let filename = format!("{}/heat_map_{}.csv", self.output_dir, self.portfolio.name);
+        /*let filename = format!("{}/heat_map_{}.csv", self.output_dir, self.portfolio.name);
         self.write_heat_map(&filename)?;
 
         for instrument_name in self.portfolio.get_instrument_name_list() {
@@ -278,7 +264,7 @@ impl<'a> Output for CsvOutput<'a> {
                 self.output_dir, self.portfolio.name, region_name
             );
             self.write_distribution_by_instrument(region_name, &filename)?;
-        }
+        }*/
 
         Ok(())
     }
