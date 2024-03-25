@@ -1,9 +1,8 @@
-use super::tools::{Pnl, PnlAccumulator};
+use super::primitive;
 use crate::alias::Date;
 use crate::historical::DataFrame;
 use crate::marketdata::Instrument;
 use crate::portfolio::{Position, Way};
-use std::collections::HashMap;
 use std::rc::Rc;
 
 use log::debug;
@@ -12,6 +11,7 @@ pub struct PositionIndicator {
     pub date: Date,
     pub spot: DataFrame,
     pub instrument: Rc<Instrument>,
+    pub position_index: usize,
     pub quantity: f64,
     pub quantity_buy: f64,
     pub quantity_sell: f64,
@@ -21,101 +21,64 @@ pub struct PositionIndicator {
     pub cashflow: f64,
     pub dividends: f64,
     pub tax: f64,
-    pub pnl_current: Pnl,
-    pub pnl_daily: Pnl,
-    pub pnl_weekly: Pnl,
-    pub pnl_monthly: Pnl,
-    pub pnl_yearly: Pnl,
-    pub pnl_for_3_months: Pnl,
-    pub pnl_for_1_year: Pnl,
-    pub volatility_3_month: f64,
-    pub volatility_1_year: f64,
+    pub pnl_currency: f64,
+    pub pnl_percent: f64,
+    pub twr: f64,
     pub earning: f64,
     pub earning_latent: f64,
-    pub is_already_close: bool,
+    pub cost: f64,
+    pub is_close: bool,
 }
 
 impl PositionIndicator {
     pub fn from_position(
         position: &Position,
         date: Date,
+        position_index: usize,
         spot: &DataFrame,
-        pnl_accumulator_by_position: &mut HashMap<String, PnlAccumulator>,
+        previous_indicators: &[PositionIndicator],
     ) -> PositionIndicator {
         debug!(
             "price position {} at {} with spot:{}",
-            position.instrument.name,
-            date,
-            spot.close()
+            position.instrument.name, date, spot.close
         );
 
         let (quantity, quantity_buy, quantity_sell, unit_price, tax) =
             Self::compute_quantity_(position, date);
 
-        let valuation = spot.close() * quantity;
+        let is_close = quantity.abs() < 1e-7;
+
+        let valuation = spot.close * quantity;
         let nominal = unit_price * quantity;
 
-        let cashflow = position
-            .trades
-            .iter()
-            .filter(|trade| trade.date.date() == date)
-            .map(|trade| {
-                let way = match trade.way {
-                    Way::Sell => -1.0,
-                    Way::Buy => 1.0,
-                };
-                way * trade.quantity * trade.price + trade.tax
-            })
-            .sum();
+        let cashflow = Self::compute_cashflow_(position, date);
+        let (pnl_currency, pnl_percent) = primitive::pnl(valuation, nominal);
 
-        let dividends = position
-            .instrument
-            .dividends
-            .as_ref()
-            .map(|dividends| {
-                dividends
-                    .iter()
-                    .map(|dividend| {
-                        let quantity = PositionIndicator::compute_quantity_(
-                            position,
-                            dividend.record_date.date(),
-                        )
-                        .0;
-                        dividend.value * quantity
-                    })
-                    .sum()
-            })
-            .unwrap_or_else(|| 0.0);
+        let (previous_twr, begin_valuation, delta_cashflow) =
+            if let Some(previous_indicator) = previous_indicators.last() {
+                (
+                    previous_indicator.twr,
+                    previous_indicator.valuation,
+                    cashflow - previous_indicator.cashflow,
+                )
+            } else {
+                (0.0, nominal, 0.0)
+            };
 
-        let is_already_close = quantity.abs() < 1e-7
-            && !position
-                .trades
-                .iter()
-                .any(|trade| trade.date.date() == date);
+        let twr = primitive::twr(begin_valuation, valuation, delta_cashflow, previous_twr);
 
-        let pnl_accumulator = pnl_accumulator_by_position
-            .entry(position.instrument.name.to_string())
-            .or_default();
-        pnl_accumulator.append(date, cashflow, valuation);
+        let dividends = Self::compute_dividends_(position, date);
 
-        let earning = dividends
-            + position
-                .trades
-                .iter()
-                .filter(|trade| trade.date.date() <= date)
-                .fold(0.0, |earning, trade| {
-                    let trade_price = match trade.way {
-                        Way::Sell => trade.price * trade.quantity,
-                        Way::Buy => -trade.price * trade.quantity,
-                    };
-                    trade_price + earning - trade.tax
-                });
+        let earning = dividends + Self::compute_earning_without_div_(position, date);
         let earning_latent = earning + valuation;
+
+        let cost = Self::compute_cost_(position, date);
 
         PositionIndicator {
             date,
             spot: *spot,
             instrument: position.instrument.clone(),
+            position_index,
             quantity,
             quantity_buy,
             quantity_sell,
@@ -125,18 +88,13 @@ impl PositionIndicator {
             cashflow,
             dividends,
             tax,
-            pnl_current: pnl_accumulator.global,
-            pnl_daily: pnl_accumulator.daily,
-            pnl_weekly: pnl_accumulator.weekly,
-            pnl_monthly: pnl_accumulator.monthly,
-            pnl_yearly: pnl_accumulator.yearly,
-            pnl_for_3_months: pnl_accumulator.for_3_months,
-            pnl_for_1_year: pnl_accumulator.for_1_year,
-            volatility_3_month: pnl_accumulator.volatility_3_month,
-            volatility_1_year: pnl_accumulator.volatility_1_year,
+            pnl_currency,
+            pnl_percent,
+            twr,
             earning,
             earning_latent,
-            is_already_close,
+            cost,
+            is_close,
         }
     }
 
@@ -171,6 +129,57 @@ impl PositionIndicator {
                 },
             )
     }
+
+    fn compute_cashflow_(position: &Position, date: Date) -> f64 {
+        position
+            .trades
+            .iter()
+            .filter(|trade| trade.date.date() <= date)
+            .map(|trade| match trade.way {
+                Way::Sell => -1.0,
+                Way::Buy => 1.0,
+            } * trade.quantity * trade.price)
+            .sum()
+    }
+
+    fn compute_dividends_(position: &Position, date: Date) -> f64 {
+        position
+            .instrument
+            .dividends
+            .as_ref()
+            .map_or(0.0, |dividends| {
+                dividends
+                    .iter()
+                    .filter(|dividend| dividend.payment_date.date() <= date)
+                    .map(|dividend| {
+                        let quantity = PositionIndicator::compute_quantity_(
+                            position,
+                            dividend.record_date.date(),
+                        )
+                        .0;
+                        dividend.value * quantity
+                    })
+                    .sum()
+            })
+    }
+
+    fn compute_earning_without_div_(position: &Position, date: Date) -> f64 {
+        position
+            .trades
+            .iter()
+            .filter(|trade| trade.date.date() <= date && trade.way == Way::Sell)
+            .map(|trade| trade.price * trade.quantity - trade.tax)
+            .sum()
+    }
+
+    fn compute_cost_(position: &Position, date: Date) -> f64 {
+        position
+            .trades
+            .iter()
+            .filter(|trade| trade.date.date() <= date && trade.way == Way::Buy)
+            .map(|trade| trade.price * trade.quantity + trade.tax)
+            .sum()
+    }
 }
 
 #[cfg(test)]
@@ -178,7 +187,6 @@ mod tests {
     use super::*;
     use crate::marketdata::{Currency, Instrument, Market};
     use crate::portfolio::{Position, Trade, Way};
-    use crate::pricer::PortfolioIndicator;
     use assert_float_eq::*;
 
     fn make_instrument_(name: &str) -> Rc<Instrument> {
@@ -205,62 +213,57 @@ mod tests {
         })
     }
 
-    fn make_indicator_(
-        position: &Position,
-        date: Date,
-        spot: f64,
-        pnl_accumulator_by_instrument: &mut HashMap<String, PnlAccumulator>,
-    ) -> PositionIndicator {
-        let spot = DataFrame::new(date, spot, spot, spot, spot);
-        PositionIndicator::from_position(position, date, &spot, pnl_accumulator_by_instrument)
+    fn make_date_(year: i32, month: u32, day: u32) -> Date {
+        chrono::NaiveDate::from_ymd_opt(year, month, day).unwrap()
     }
 
-    fn make_default_portfolio_indicator_(
-        position_indicator: PositionIndicator,
-    ) -> PortfolioIndicator {
-        PortfolioIndicator {
-            date: position_indicator.date,
-            positions: vec![position_indicator],
-            ..Default::default()
+    fn make_spot_(date: Date, value: f64) -> DataFrame {
+        DataFrame::new(date, value, value, value, value)
+    }
+
+    fn make_position_() -> Position {
+        let instrument = make_instrument_("PAEEM");
+        Position {
+            instrument,
+            trades: vec![
+                Trade {
+                    date: chrono::DateTime::parse_from_rfc3339("2022-03-17T10:00:00-00:00")
+                        .unwrap()
+                        .naive_local(),
+                    way: Way::Buy,
+                    quantity: 14.0,
+                    price: 21.5,
+                    tax: 1.55,
+                },
+                Trade {
+                    date: chrono::DateTime::parse_from_rfc3339("2022-03-19T10:00:00-00:00")
+                        .unwrap()
+                        .naive_local(),
+                    way: Way::Buy,
+                    quantity: 20.0,
+                    price: 19.5,
+                    tax: 1.0,
+                },
+                Trade {
+                    date: chrono::DateTime::parse_from_rfc3339("2022-03-21T10:00:00-00:00")
+                        .unwrap()
+                        .naive_local(),
+                    way: Way::Sell,
+                    quantity: 10.0,
+                    price: 20.0,
+                    tax: 1.2,
+                },
+                Trade {
+                    date: chrono::DateTime::parse_from_rfc3339("2022-03-22T10:00:00-00:00")
+                        .unwrap()
+                        .naive_local(),
+                    way: Way::Sell,
+                    quantity: 24.0,
+                    price: 21.0,
+                    tax: 1.3,
+                },
+            ],
         }
-    }
-
-    fn check_indicator_(
-        indicator: &PositionIndicator,
-        valuation: f64,
-        nominal: f64,
-        cashflow: f64,
-        quantity: (f64, f64, f64),
-        unit_price: f64,
-        previous_valuations: (f64, f64, f64, f64),
-    ) {
-        assert_float_absolute_eq!(indicator.valuation, valuation, 1e-7);
-        assert_float_absolute_eq!(indicator.nominal, nominal, 1e-7);
-        assert_float_absolute_eq!(indicator.cashflow, cashflow, 1e-7);
-        assert_float_absolute_eq!(indicator.quantity, quantity.0, 1e-7);
-        assert_float_absolute_eq!(indicator.quantity_buy, quantity.1, 1e-7);
-        assert_float_absolute_eq!(indicator.quantity_sell, quantity.2, 1e-7);
-        assert_float_absolute_eq!(indicator.unit_price, unit_price, 1e-7);
-        assert_float_absolute_eq!(
-            indicator.pnl_daily.value,
-            indicator.valuation - (cashflow + previous_valuations.0),
-            1e-7
-        );
-        assert_float_absolute_eq!(
-            indicator.pnl_current.value,
-            indicator.pnl_daily.value + previous_valuations.1,
-            1e-7
-        );
-        assert_float_absolute_eq!(
-            indicator.pnl_weekly.value,
-            indicator.pnl_daily.value + previous_valuations.2,
-            1e-7
-        );
-        assert_float_absolute_eq!(
-            indicator.pnl_monthly.value,
-            indicator.pnl_daily.value + previous_valuations.3,
-            1e-7
-        );
     }
 
     #[test]
@@ -270,120 +273,254 @@ mod tests {
             instrument,
             trades: Default::default(),
         };
-        let date = chrono::NaiveDate::from_ymd_opt(2022, 3, 17).unwrap();
-        let indicator = make_indicator_(&position, date, 21.92, &mut Default::default());
-        check_indicator_(
-            &indicator,
-            0.0,
-            0.0,
-            0.0,
-            (0.0, 0.0, 0.0),
-            0.0,
-            (0.0, 0.0, 0.0, 0.0),
+        let date = make_date_(2022, 3, 17);
+        let indicator = PositionIndicator::from_position(
+            &position,
+            date,
+            0,
+            &make_spot_(date, 21.92),
+            Default::default(),
         );
+        check_indicator_(&indicator, 0.0, 0.0, (0.0, 0.0), 0.0, true);
     }
 
     #[test]
-    fn compute_position_with_trade_01() {
-        let instrument = make_instrument_("PAEEM");
-        let position = Position {
-            instrument,
-            trades: vec![Trade {
-                date: chrono::DateTime::parse_from_rfc3339("2022-03-17T10:00:00-00:00")
-                    .unwrap()
-                    .naive_local(),
-                way: Way::Buy,
-                quantity: 14.0,
-                price: 22.184,
-                tax: 1.55,
-            }],
-        };
-
-        let mut portfolio_indicators = Vec::new();
-        let mut pnl_accumulator_by_instrument = Default::default();
-        let date = chrono::NaiveDate::from_ymd_opt(2022, 3, 17).unwrap();
-        for (pos, spot) in [
-            21.92, 22.41, 22.41, 22.41, 22.03, 22.55, 22.55, 22.53, 22.32, 22.32, 22.32, 22.35,
-            22.53,
-        ]
-        .iter()
-        .enumerate()
+    fn compute_position_with_trade() {
+        let position = make_position_();
+        let mut previous_indicators = Vec::new();
         {
-            let date = date
-                .checked_add_days(chrono::naive::Days::new(pos as u64))
-                .unwrap();
-            let portfolio_indicator = make_default_portfolio_indicator_(make_indicator_(
+            let date = make_date_(2022, 3, 17);
+            let indicator = PositionIndicator::from_position(
                 &position,
                 date,
-                *spot,
-                &mut pnl_accumulator_by_instrument,
-            ));
-            portfolio_indicators.push(portfolio_indicator);
+                0,
+                &make_spot_(date, 21.0),
+                &previous_indicators,
+            );
+            check_indicator_(
+                &indicator,
+                294.0,
+                302.55,
+                (-8.55, -0.028259792),
+                -0.028259792,
+                false,
+            );
+            previous_indicators.push(indicator);
         }
+        {
+            let date = make_date_(2022, 3, 19);
+            let indicator = PositionIndicator::from_position(
+                &position,
+                date,
+                0,
+                &make_spot_(date, 22.0),
+                &previous_indicators,
+            );
+            check_indicator_(
+                &indicator,
+                748.0,
+                693.55,
+                (54.45, 0.07850911974623322),
+                0.18327549165427204,
+                false,
+            );
+            previous_indicators.push(indicator);
+        }
+        {
+            let date = make_date_(2022, 3, 20);
+            let indicator = PositionIndicator::from_position(
+                &position,
+                date,
+                0,
+                &make_spot_(date, 21.5),
+                &previous_indicators,
+            );
+            check_indicator_(
+                &indicator,
+                731.0,
+                693.55,
+                (37.45, 0.053997548842909734),
+                0.15638286684394775,
+                false,
+            );
+            previous_indicators.push(indicator);
+        }
+        {
+            let date = make_date_(2022, 3, 21);
+            let indicator = PositionIndicator::from_position(
+                &position,
+                date,
+                0,
+                &make_spot_(date, 21.75),
+                &previous_indicators,
+            );
+            check_indicator_(
+                &indicator,
+                522.0,
+                489.56470588235294,
+                (32.43529411764706, 0.0662533342945714),
+                0.1421455948855408,
+                false,
+            );
+            previous_indicators.push(indicator);
+        }
+        {
+            let date = make_date_(2022, 3, 22);
+            let indicator = PositionIndicator::from_position(
+                &position,
+                date,
+                0,
+                &make_spot_(date, 22.5),
+                &previous_indicators,
+            );
+            check_indicator_(&indicator, 0.0, 0.0, (0.0, 0.0), 0.1027612640274187, true);
+            previous_indicators.push(indicator);
+        }
+    }
 
-        let indicator_17 = portfolio_indicators
-            .first()
-            .unwrap()
-            .positions
-            .first()
-            .unwrap();
-        let indicator_18 = portfolio_indicators
-            .get(1)
-            .unwrap()
-            .positions
-            .first()
-            .unwrap();
-        let indicator_20 = portfolio_indicators
-            .get(3)
-            .unwrap()
-            .positions
-            .first()
-            .unwrap();
-        let indicator_21 = portfolio_indicators
-            .get(4)
-            .unwrap()
-            .positions
-            .first()
-            .unwrap();
+    #[test]
+    fn compute_quantity() {
+        let position = make_position_();
+        {
+            let (quantity, quantity_buy, quantity_sell, unit_price, tax) =
+                PositionIndicator::compute_quantity_(&position, make_date_(2022, 3, 17));
+            assert_float_absolute_eq!(quantity, 14.0, 1e-7);
+            assert_float_absolute_eq!(quantity_buy, 14.0, 1e-7);
+            assert_float_absolute_eq!(quantity_sell, 0.0, 1e-7);
+            assert_float_absolute_eq!(unit_price, 21.6107142, 1e-7);
+            assert_float_absolute_eq!(tax, 1.55, 1e-7);
+        }
+        {
+            let (quantity, quantity_buy, quantity_sell, unit_price, tax) =
+                PositionIndicator::compute_quantity_(&position, make_date_(2022, 3, 19));
+            assert_float_absolute_eq!(quantity, 34.0, 1e-7);
+            assert_float_absolute_eq!(quantity_buy, 34.0, 1e-7);
+            assert_float_absolute_eq!(quantity_sell, 0.0, 1e-7);
+            assert_float_absolute_eq!(unit_price, 20.398529411764706, 1e-7);
+            assert_float_absolute_eq!(tax, 2.55, 1e-7);
+        }
+        {
+            let (quantity, quantity_buy, quantity_sell, unit_price, tax) =
+                PositionIndicator::compute_quantity_(&position, make_date_(2022, 3, 20));
+            assert_float_absolute_eq!(quantity, 34.0, 1e-7);
+            assert_float_absolute_eq!(quantity_buy, 34.0, 1e-7);
+            assert_float_absolute_eq!(quantity_sell, 0.0, 1e-7);
+            assert_float_absolute_eq!(unit_price, 20.398529411764706, 1e-7);
+            assert_float_absolute_eq!(tax, 2.55, 1e-7);
+        }
+        {
+            let (quantity, quantity_buy, quantity_sell, unit_price, tax) =
+                PositionIndicator::compute_quantity_(&position, make_date_(2022, 3, 21));
+            assert_float_absolute_eq!(quantity, 24.0, 1e-7);
+            assert_float_absolute_eq!(quantity_buy, 34.0, 1e-7);
+            assert_float_absolute_eq!(quantity_sell, 10.0, 1e-7);
+            assert_float_absolute_eq!(unit_price, 20.398529411764706, 1e-7);
+            assert_float_absolute_eq!(tax, 3.75, 1e-7);
+        }
+        {
+            let (quantity, quantity_buy, quantity_sell, unit_price, tax) =
+                PositionIndicator::compute_quantity_(&position, make_date_(2022, 3, 22));
+            assert_float_absolute_eq!(quantity, 0.0, 1e-7);
+            assert_float_absolute_eq!(quantity_buy, 34.0, 1e-7);
+            assert_float_absolute_eq!(quantity_sell, 34.0, 1e-7);
+            assert_float_absolute_eq!(unit_price, 0.0, 1e-7);
+            assert_float_absolute_eq!(tax, 5.05, 1e-7);
+        }
+    }
 
-        check_indicator_(
-            indicator_17,
-            indicator_17.spot.close() * 14.0,
-            312.126,
-            14.0 * 22.184 + 1.55,
-            (14.0, 14.0, 0.0),
-            312.126 / 14.0,
-            (0.0, 0.0, 0.0, 0.0),
-        );
+    #[test]
+    fn compute_cashflow() {
+        let position = make_position_();
+        {
+            let cashflow = PositionIndicator::compute_cashflow_(&position, make_date_(2022, 3, 17));
+            assert_float_absolute_eq!(cashflow, 301.0, 1e-7);
+        }
+        {
+            let cashflow = PositionIndicator::compute_cashflow_(&position, make_date_(2022, 3, 19));
+            assert_float_absolute_eq!(cashflow, 691.0, 1e-7);
+        }
+        {
+            let cashflow = PositionIndicator::compute_cashflow_(&position, make_date_(2022, 3, 20));
+            assert_float_absolute_eq!(cashflow, 691.0, 1e-7);
+        }
+        {
+            let cashflow = PositionIndicator::compute_cashflow_(&position, make_date_(2022, 3, 21));
+            assert_float_absolute_eq!(cashflow, 491.0, 1e-7);
+        }
+        {
+            let cashflow = PositionIndicator::compute_cashflow_(&position, make_date_(2022, 3, 22));
+            assert_float_absolute_eq!(cashflow, -13.0, 1e-7);
+        }
+    }
 
-        check_indicator_(
-            indicator_18,
-            indicator_18.spot.close() * 14.0,
-            312.126,
-            0.0,
-            (14.0, 14.0, 0.0),
-            312.126 / 14.0,
-            (
-                indicator_17.valuation,
-                indicator_17.pnl_current.value,
-                indicator_17.pnl_weekly.value,
-                indicator_17.pnl_monthly.value,
-            ),
-        );
+    #[test]
+    fn compute_earning() {
+        let position = make_position_();
+        {
+            let earning: f64 =
+                PositionIndicator::compute_earning_without_div_(&position, make_date_(2022, 3, 17));
+            assert_float_absolute_eq!(earning, 0.0, 1e-7);
+        }
+        {
+            let earning =
+                PositionIndicator::compute_earning_without_div_(&position, make_date_(2022, 3, 19));
+            assert_float_absolute_eq!(earning, 0.0, 1e-7);
+        }
+        {
+            let earning =
+                PositionIndicator::compute_earning_without_div_(&position, make_date_(2022, 3, 20));
+            assert_float_absolute_eq!(earning, 0.0, 1e-7);
+        }
+        {
+            let earning =
+                PositionIndicator::compute_earning_without_div_(&position, make_date_(2022, 3, 21));
+            assert_float_absolute_eq!(earning, 198.8, 1e-7);
+        }
+        {
+            let earning =
+                PositionIndicator::compute_earning_without_div_(&position, make_date_(2022, 3, 22));
+            assert_float_absolute_eq!(earning, 701.5, 1e-7);
+        }
+    }
 
-        check_indicator_(
-            indicator_21,
-            indicator_21.spot.close() * 14.0,
-            312.126,
-            0.0,
-            (14.0, 14.0, 0.0),
-            312.126 / 14.0,
-            (
-                indicator_20.valuation,
-                indicator_20.pnl_current.value,
-                0.0,
-                indicator_20.pnl_monthly.value,
-            ),
-        );
+    #[test]
+    fn compute_cost() {
+        let position = make_position_();
+        {
+            let cost: f64 = PositionIndicator::compute_cost_(&position, make_date_(2022, 3, 17));
+            assert_float_absolute_eq!(cost, 302.55, 1e-7);
+        }
+        {
+            let cost = PositionIndicator::compute_cost_(&position, make_date_(2022, 3, 19));
+            assert_float_absolute_eq!(cost, 693.55, 1e-7);
+        }
+        {
+            let cost = PositionIndicator::compute_cost_(&position, make_date_(2022, 3, 20));
+            assert_float_absolute_eq!(cost, 693.55, 1e-7);
+        }
+        {
+            let cost = PositionIndicator::compute_cost_(&position, make_date_(2022, 3, 21));
+            assert_float_absolute_eq!(cost, 693.55, 1e-7);
+        }
+        {
+            let cost = PositionIndicator::compute_cost_(&position, make_date_(2022, 3, 22));
+            assert_float_absolute_eq!(cost, 693.55, 1e-7);
+        }
+    }
+
+    fn check_indicator_(
+        indicator: &PositionIndicator,
+        valuation: f64,
+        nominal: f64,
+        pnl: (f64, f64),
+        twr: f64,
+        is_close: bool,
+    ) {
+        assert_float_absolute_eq!(indicator.valuation, valuation, 1e-7);
+        assert_float_absolute_eq!(indicator.nominal, nominal, 1e-7);
+        assert_float_absolute_eq!(indicator.pnl_currency, pnl.0, 1e-7);
+        assert_float_absolute_eq!(indicator.pnl_percent, pnl.1, 1e-7);
+        assert_float_absolute_eq!(indicator.twr, twr, 1e-7);
+        assert_eq!(indicator.is_close, is_close);
     }
 }
