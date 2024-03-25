@@ -2,49 +2,29 @@ use crate::alias::Date;
 use crate::error::Error;
 use crate::historical::Provider;
 use crate::portfolio::Portfolio;
-use chrono::Datelike;
-use std::collections::BTreeMap;
+use std::collections::{HashMap, HashSet};
 
-use log::{debug, info};
+use log::{error, info};
 
+mod heat_map;
+mod instrument;
 mod portfolio;
 mod position;
-mod tools;
+mod primitive;
+mod region;
 
+pub use heat_map::{HeatMap, HeatMapPeriod};
+pub use instrument::InstrumentIndicator;
 pub use portfolio::PortfolioIndicator;
 pub use position::PositionIndicator;
+pub use region::{RegionIndicator, RegionIndicatorInstrument};
 
-fn is_last_day_of_month(date: Date) -> bool {
-    Date::from_ymd_opt(date.year(), date.month(), 1)
-        .and_then(|v| v.checked_add_months(chrono::Months::new(1)))
-        .and_then(|v| v.checked_sub_days(chrono::naive::Days::new(1)))
-        .map_or(false, |v| v == date)
-}
-
-fn is_last_day_of_year(date: Date) -> bool {
-    date.month() == 12 && date.day() == 31
-}
-
-pub struct HeatMapItem {
-    data: [Option<f64>; 12],
-}
-
-impl HeatMapItem {
-    pub fn new() -> Self {
-        Self {
-            data: Default::default(),
-        }
-    }
-
-    #[inline]
-    pub fn data(&self) -> &[Option<f64>; 12] {
-        &self.data
-    }
-
-    #[inline]
-    pub fn update(&mut self, month: usize, value: f64) {
-        self.data[month] = Some(value);
-    }
+pub struct PositionIndicators<'a> {
+    pub begin: Date,
+    pub end: Date,
+    pub instrument_name: String,
+    pub position_index: usize,
+    pub positions: Vec<&'a PositionIndicator>,
 }
 
 pub struct PortfolioIndicators {
@@ -96,82 +76,80 @@ impl PortfolioIndicators {
         })
     }
 
-    pub fn by_instrument_name(&self, instrument_name: &str) -> Vec<&PositionIndicator> {
-        self.portfolios
-            .iter()
-            .flat_map(|item| {
-                item.positions
-                    .iter()
-                    .find(|item_position| item_position.instrument.name == instrument_name)
-            })
-            .collect()
+    pub fn get_position_index_list(&self, name: &str) -> HashSet<usize> {
+        let mut result = HashSet::new();
+        if let Some(indicator) = self.portfolios.last() {
+            result = indicator
+                .positions
+                .iter()
+                .filter(|item| item.instrument.name == name)
+                .map(|item| item.position_index)
+                .collect();
+        }
+        result
     }
 
-    pub fn make_year_heat_map(&self) -> BTreeMap<i32, f64> {
-        let mut values = self
-            .portfolios
-            .iter()
-            .filter(|item| is_last_day_of_year(item.date))
-            .collect::<Vec<_>>();
-        if let Some(last) = self.portfolios.last() {
-            if !is_last_day_of_year(last.date) {
-                values.push(last);
-            }
-        }
-
-        let mut lines: BTreeMap<i32, f64> = Default::default();
-        for item in values {
-            let year = item.date.year();
-            lines.insert(year, item.pnl_yearly.value_pct);
-        }
-        lines
-    }
-
-    pub fn make_month_heat_map(&self) -> BTreeMap<i32, HeatMapItem> {
-        let mut values = self
-            .portfolios
-            .iter()
-            .filter(|item| is_last_day_of_month(item.date))
-            .collect::<Vec<_>>();
-        if let Some(last) = self.portfolios.last() {
-            if !is_last_day_of_month(last.date) {
-                values.push(last);
-            }
-        }
-        let mut lines: BTreeMap<i32, HeatMapItem> = Default::default();
-        for item in values {
-            let year = item.date.year();
-            lines
-                .entry(year)
-                .or_insert_with(HeatMapItem::new)
-                .update(item.date.month0() as usize, item.pnl_monthly.value_pct)
-        }
-        lines
-    }
-
-    pub fn make_month_instrument_heat_map(
-        &self,
+    pub fn get_position_indicators<'a>(
+        &'a self,
         instrument_name: &str,
-    ) -> BTreeMap<i32, HeatMapItem> {
-        let position_by_instrument = self.by_instrument_name(instrument_name);
-        let mut values = position_by_instrument
+        position_index: usize,
+    ) -> PositionIndicators<'a> {
+        let positions = self
+            .portfolios
             .iter()
-            .filter(|item| is_last_day_of_month(item.date))
-            .collect::<Vec<_>>();
-        if let Some(last) = position_by_instrument.last() {
-            if !is_last_day_of_month(last.date) {
-                values.push(last);
+            .flat_map(|portfolio| {
+                portfolio.positions.iter().filter(|item| {
+                    item.instrument.name == instrument_name && item.position_index == position_index
+                })
+            })
+            .collect();
+
+        PositionIndicators {
+            begin: self.begin,
+            end: self.end,
+            instrument_name: instrument_name.to_string(),
+            position_index,
+            positions,
+        }
+    }
+
+    fn make_positions_date_<P>(
+        portfolio: &Portfolio,
+        begin: Date,
+        end: Date,
+        spot_provider: &mut P,
+    ) -> HashMap<Date, Vec<PositionIndicator>>
+    where
+        P: Provider,
+    {
+        let mut result: HashMap<Date, Vec<PositionIndicator>> = Default::default();
+        for (position_index, position) in portfolio.positions.iter().enumerate() {
+            let mut indicators = Vec::new();
+            if let Some(trade) = position.trades.first() {
+                let begin = std::cmp::max(trade.date.date(), begin);
+                for date in begin.iter_days().take_while(|item| item <= &end) {
+                    if let Some(spot) = spot_provider.latest(&position.instrument, date) {
+                        let indicator = PositionIndicator::from_position(
+                            position,
+                            date,
+                            position_index,
+                            spot,
+                            &indicators,
+                        );
+                        indicators.push(indicator);
+                    } else {
+                        error!(
+                            "no spot on {}/{} at {} and before skip position pricing",
+                            position.instrument.name, position_index, date
+                        );
+                    }
+                }
+            }
+            for indicator in indicators {
+                result.entry(indicator.date).or_default().push(indicator);
             }
         }
-        let mut lines: BTreeMap<i32, HeatMapItem> = Default::default();
-        for item in values {
-            let year = item.date.year();
-            lines
-                .entry(year)
-                .or_insert_with(HeatMapItem::new)
-                .update(item.date.month0() as usize, item.pnl_monthly.value_pct)
-        }
-        lines
+        result
     }
 
     fn make_portfolios_<P>(
@@ -183,29 +161,26 @@ impl PortfolioIndicators {
     where
         P: Provider,
     {
-        let mut data = Vec::new();
-        let mut it = begin;
-        let mut pnl_accumulator = Default::default();
-        let mut pnl_accumulator_by_position = Default::default();
-        while it <= end {
-            let value = PortfolioIndicator::from_portfolio(
-                portfolio,
-                it,
-                spot_provider,
-                &mut pnl_accumulator,
-                &mut pnl_accumulator_by_position,
-            );
-            if !value.positions.is_empty() {
-                data.push(value);
-            } else {
-                debug!("pricing result at {} is ignored (position empty)", it);
-            }
-            if let Some(next_it) = it.checked_add_days(chrono::naive::Days::new(1)) {
-                it = next_it;
-            } else {
-                break;
+        let mut indicators = Vec::new();
+        let mut positions_by_date =
+            PortfolioIndicators::make_positions_date_(portfolio, begin, end, spot_provider);
+        for date in begin.iter_days().take_while(|item| item <= &end) {
+            if let Some(position_indicators) = positions_by_date.remove(&date) {
+                if position_indicators.is_empty() {
+                    continue;
+                }
+
+                let indicator = PortfolioIndicator::from_portfolio(
+                    portfolio,
+                    date,
+                    position_indicators,
+                    &indicators,
+                );
+
+                indicators.push(indicator);
             }
         }
-        data
+
+        indicators
     }
 }

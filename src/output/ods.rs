@@ -1,94 +1,23 @@
+use super::ods_helper::{TableBuilder, TableBuilderStyleResolver};
 use super::Output;
 use crate::alias::Date;
 use crate::error::Error;
-use crate::portfolio::Portfolio;
-use crate::pricer::{HeatMapItem, PortfolioIndicators};
+use crate::marketdata::Instrument;
+use crate::portfolio::{Portfolio, Trade};
+use crate::pricer::{
+    HeatMap, HeatMapPeriod, InstrumentIndicator, PortfolioIndicator, PortfolioIndicators,
+    PositionIndicator, PositionIndicators, RegionIndicator, RegionIndicatorInstrument,
+};
+use chrono::Datelike;
 use log::debug;
 use spreadsheet_ods::format::{FormatNumberStyle, ValueFormatTrait};
 use spreadsheet_ods::{
     currency, percent, CellStyleRef, Sheet, Value, ValueFormatCurrency, ValueFormatDateTime,
     ValueFormatRef, WorkBook,
 };
-use std::collections::{BTreeMap, HashMap};
 
-macro_rules! update_sheet_with_indicator {
-    ($sheet:ident, $row:expr, $col:expr, $currency:expr, $indicator:expr) => {
-        $sheet.set_value($row, $col, currency!(&$currency.name, $indicator.valuation));
-        $sheet.set_value(
-            $row,
-            $col + 1,
-            currency!(&$currency.name, $indicator.nominal),
-        );
-        $sheet.set_value(
-            $row,
-            $col + 2,
-            currency!(&$currency.name, $indicator.dividends),
-        );
-        $sheet.set_value($row, $col + 3, currency!(&$currency.name, $indicator.tax));
-        $sheet.set_value($row, $col + 4, percent!($indicator.pnl_current.value_pct));
-        $sheet.set_value($row, $col + 5, percent!($indicator.pnl_daily.value_pct));
-        $sheet.set_value($row, $col + 6, percent!($indicator.pnl_weekly.value_pct));
-        $sheet.set_value($row, $col + 7, percent!($indicator.pnl_monthly.value_pct));
-        $sheet.set_value($row, $col + 8, percent!($indicator.pnl_yearly.value_pct));
-        $sheet.set_value(
-            $row,
-            $col + 9,
-            percent!($indicator.pnl_for_3_months.value_pct),
-        );
-        $sheet.set_value(
-            $row,
-            $col + 10,
-            percent!($indicator.pnl_for_1_year.value_pct),
-        );
-        $sheet.set_value(
-            $row,
-            $col + 11,
-            currency!(&$currency.name, $indicator.pnl_current.value),
-        );
-        $sheet.set_value(
-            $row,
-            $col + 12,
-            currency!(&$currency.name, $indicator.pnl_daily.value),
-        );
-        $sheet.set_value(
-            $row,
-            $col + 13,
-            currency!(&$currency.name, $indicator.pnl_weekly.value),
-        );
-        $sheet.set_value(
-            $row,
-            $col + 14,
-            currency!(&$currency.name, $indicator.pnl_monthly.value),
-        );
-        $sheet.set_value(
-            $row,
-            $col + 15,
-            currency!(&$currency.name, $indicator.pnl_yearly.value),
-        );
-        $sheet.set_value(
-            $row,
-            $col + 16,
-            currency!(&$currency.name, $indicator.pnl_for_3_months.value),
-        );
-        $sheet.set_value(
-            $row,
-            $col + 17,
-            currency!(&$currency.name, $indicator.pnl_for_1_year.value),
-        );
-        $sheet.set_value($row, $col + 18, $indicator.volatility_3_month);
-        $sheet.set_value($row, $col + 19, $indicator.volatility_1_year);
-        $sheet.set_value(
-            $row,
-            $col + 20,
-            currency!(&$currency.name, $indicator.earning),
-        );
-        $sheet.set_value(
-            $row,
-            $col + 21,
-            currency!(&$currency.name, $indicator.earning_latent),
-        );
-    };
-}
+use std::collections::BTreeMap;
+use std::rc::Rc;
 
 pub struct OdsOutput<'a> {
     output_filename: String,
@@ -96,6 +25,16 @@ pub struct OdsOutput<'a> {
     portfolio: &'a Portfolio,
     indicators: &'a PortfolioIndicators,
     filter_indicators: &'a Option<Date>,
+}
+
+impl<'a> TableBuilderStyleResolver for OdsOutput<'a> {
+    fn get_style(&self, _header: &str, value: &Value) -> Option<CellStyleRef> {
+        match value {
+            Value::Currency(_, currency_name) => self.get_currency_style(currency_name),
+            Value::DateTime(_) => self.get_date_style("DD/MM/YYYY"),
+            _ => None,
+        }
+    }
 }
 
 impl<'a> OdsOutput<'a> {
@@ -142,171 +81,146 @@ impl<'a> OdsOutput<'a> {
         Ok(())
     }
 
+    fn create_style(&mut self) -> Result<(), Error> {
+        self.create_date_style("DD/MM/YYYY")?;
+        self.create_currency_style(&self.portfolio.currency.name)?;
+        for instrument in self
+            .portfolio
+            .positions
+            .iter()
+            .map(|position| &position.instrument)
+        {
+            self.create_currency_style(&instrument.currency.name)?;
+        }
+        Ok(())
+    }
+
     fn write_summary(&mut self) -> Result<(), Error> {
         let mut sheet = Sheet::new("Summary");
-        // header
-        for (i, header_name) in [
-            "Instrument",
-            "Quantity",
-            "Unit Price",
-            "Spot (Close)",
-            "Valuation",
-            "Tax",
-            "Nominal",
-            "Dividends",
-            "P&L",
-            "P&L(%)",
-            "Distribution",
-        ]
-        .iter()
-        .enumerate()
-        {
-            sheet.set_value(0, i as u32, Value::Text(header_name.to_string()));
-        }
 
-        let currency_style_ref = self.get_currency_style(&self.portfolio.currency.name)?;
+        if let Some(portfolio) = self.indicators.portfolios.last() {
+            let intrument_indicators = InstrumentIndicator::from_portfolio(portfolio);
+            let inputs = portfolio
+                .positions
+                .iter()
+                .filter(|position| !position.is_close);
 
-        if let Some(portolio) = self.indicators.portfolios.last() {
-            let distribution = portolio.make_distribution_global_by_instrument();
-            let mut i: u32 = 1;
-            for position in portolio.positions.iter() {
-                sheet.set_value(i, 0, &position.instrument.name);
-                sheet.set_value(i, 1, position.quantity);
-                sheet.set_styled_value(
-                    i,
-                    2,
-                    currency!(&position.instrument.currency.name, position.unit_price),
-                    &currency_style_ref,
-                );
-                sheet.set_styled_value(
-                    i,
-                    3,
-                    currency!(&position.instrument.currency.name, position.spot.close()),
-                    &currency_style_ref,
-                );
-                sheet.set_styled_value(
-                    i,
-                    4,
-                    currency!(&position.instrument.currency.name, position.valuation),
-                    &currency_style_ref,
-                );
-                sheet.set_styled_value(
-                    i,
-                    5,
-                    currency!(&position.instrument.currency.name, position.tax),
-                    &currency_style_ref,
-                );
-                sheet.set_styled_value(
-                    i,
-                    6,
-                    currency!(&position.instrument.currency.name, position.nominal),
-                    &currency_style_ref,
-                );
-                sheet.set_styled_value(
-                    i,
-                    7,
-                    currency!(&position.instrument.currency.name, position.dividends),
-                    &currency_style_ref,
-                );
-                sheet.set_styled_value(
-                    i,
-                    8,
-                    currency!(
-                        &position.instrument.currency.name,
-                        position.pnl_current.value
-                    ),
-                    &currency_style_ref,
-                );
-                sheet.set_value(i, 9, percent!(position.pnl_current.value_pct));
-                if let Some(instrument_distribution) = distribution.get(&position.instrument.name) {
-                    sheet.set_value(i, 10, percent!(*instrument_distribution));
-                }
-                i += 1;
-            }
+            sheet.set_value(0, 0, "Open Position");
+            let mut row = TableBuilder::new()
+                .add("Instrument Description", |position: &&PositionIndicator| {
+                    &position.instrument.description
+                })
+                .add("Quantity", |position: &&PositionIndicator| {
+                    position.quantity
+                })
+                .add("Unit Price", |position: &&PositionIndicator| {
+                    currency!(&position.instrument.currency.name, position.unit_price)
+                })
+                .add("Spot (Close)", |position: &&PositionIndicator| {
+                    currency!(&position.instrument.currency.name, position.spot.close)
+                })
+                .add("Spot (Date)", |position: &&PositionIndicator| {
+                    position.spot.date
+                })
+                .add("Valuation", |position: &&PositionIndicator| {
+                    currency!(&position.instrument.currency.name, position.valuation)
+                })
+                .add("Tax", |position: &&PositionIndicator| {
+                    currency!(&position.instrument.currency.name, position.tax)
+                })
+                .add("Nominal", |position: &&PositionIndicator| {
+                    currency!(&position.instrument.currency.name, position.nominal)
+                })
+                .add("Dividends", |position: &&PositionIndicator| {
+                    currency!(&position.instrument.currency.name, position.dividends)
+                })
+                .add("TWR", |position: &&PositionIndicator| {
+                    percent!(position.twr)
+                })
+                .add("P&L", |position: &&PositionIndicator| {
+                    currency!(&position.instrument.currency.name, position.pnl_currency)
+                })
+                .add("P&L(%)", |position: &&PositionIndicator| {
+                    percent!(position.pnl_percent)
+                })
+                .add_optional("Distribution", |position: &&PositionIndicator| {
+                    intrument_indicators
+                        .iter()
+                        .find(|indicator| indicator.instrument == position.instrument)
+                        .map(|item| percent!(item.valuation_percent))
+                })
+                .write(&mut sheet, self, 0, 1, inputs);
 
-            i += 1;
-            sheet.set_value(i, 0, "Portfolio");
-            sheet.set_styled_value(
-                i,
-                4,
-                currency!(&self.portfolio.currency.name, portolio.valuation),
-                &currency_style_ref,
-            );
-            sheet.set_styled_value(
-                i,
-                5,
-                currency!(&self.portfolio.currency.name, portolio.tax),
-                &currency_style_ref,
-            );
-            sheet.set_styled_value(
-                i,
-                6,
-                currency!(&self.portfolio.currency.name, portolio.nominal),
-                &currency_style_ref,
-            );
-            sheet.set_styled_value(
-                i,
-                7,
-                currency!(&self.portfolio.currency.name, portolio.dividends),
-                &currency_style_ref,
-            );
-            sheet.set_styled_value(
-                i,
-                8,
-                currency!(&self.portfolio.currency.name, portolio.pnl_current.value),
-                &currency_style_ref,
-            );
-            sheet.set_value(i, 9, percent!(portolio.pnl_current.value_pct));
+            TableBuilder::new()
+                .add("", |portfolio: &&PortfolioIndicator| {
+                    currency!(&self.portfolio.currency.name, portfolio.open_valuation)
+                })
+                .add("", |portfolio: &&PortfolioIndicator| {
+                    currency!(&self.portfolio.currency.name, portfolio.open_tax)
+                })
+                .add("", |portfolio: &&PortfolioIndicator| {
+                    currency!(&self.portfolio.currency.name, portfolio.open_nominal)
+                })
+                .add("", |portfolio: &&PortfolioIndicator| {
+                    currency!(&self.portfolio.currency.name, portfolio.open_dividends)
+                })
+                .add("", |portfolio: &&PortfolioIndicator| {
+                    percent!(portfolio.open_twr)
+                })
+                .add("", |portfolio: &&PortfolioIndicator| {
+                    currency!(&self.portfolio.currency.name, portfolio.open_pnl_currency)
+                })
+                .add("", |portfolio: &&PortfolioIndicator| {
+                    percent!(portfolio.open_pnl_percent)
+                })
+                .write_line(&mut sheet, self, row + 1, 6, &portfolio);
 
-            i += 2;
-            sheet.set_value(i, 0, "Cash");
-            sheet.set_styled_value(
-                i,
-                1,
-                currency!(&self.portfolio.currency.name, portolio.cash),
-                &currency_style_ref,
-            );
-            i += 1;
-            sheet.set_value(i, 0, "Cash + Valuation");
-            sheet.set_styled_value(
-                i,
-                1,
-                currency!(
-                    &self.portfolio.currency.name,
-                    portolio.cash + portolio.valuation
-                ),
-                &currency_style_ref,
-            );
-            i += 1;
-            sheet.set_value(i, 0, "Incoming Transfert");
-            sheet.set_styled_value(
-                i,
-                1,
-                currency!(&self.portfolio.currency.name, portolio.incoming_transfer),
-                &currency_style_ref,
-            );
-            i += 1;
-            sheet.set_value(i, 0, "Outcoming Transfert");
-            sheet.set_styled_value(
-                i,
-                1,
-                currency!(&self.portfolio.currency.name, portolio.outcoming_transfer),
-                &currency_style_ref,
-            );
+            row += 3;
+            sheet.set_value(row, 0, "Porfolio");
+            TableBuilder::new()
+                .add("Cash", |portfolio: &&PortfolioIndicator| {
+                    currency!(&self.portfolio.currency.name, portfolio.cash)
+                })
+                .add("Valuation", |portfolio: &&PortfolioIndicator| {
+                    currency!(&self.portfolio.currency.name, portfolio.valuation)
+                })
+                .add("P&L(%)", |portfolio: &&PortfolioIndicator| {
+                    percent!(portfolio.pnl_percent)
+                })
+                .add("P&L", |portfolio: &&PortfolioIndicator| {
+                    currency!(&self.portfolio.currency.name, portfolio.pnl_currency)
+                })
+                .add("TWR", |portfolio: &&PortfolioIndicator| {
+                    percent!(portfolio.twr)
+                })
+                .add("Incoming Transfert", |portfolio: &&PortfolioIndicator| {
+                    currency!(&self.portfolio.currency.name, portfolio.incoming_transfer)
+                })
+                .add("Outcoming Transfert", |portfolio: &&PortfolioIndicator| {
+                    currency!(&self.portfolio.currency.name, portfolio.outcoming_transfer)
+                })
+                .write_reversed(&mut sheet, self, row, 1, std::iter::once(portfolio));
 
-            i += 2;
-            sheet.set_value(i, 0, "Distribution by Region");
-            for (key, value) in portolio.make_distribution_by_region() {
-                sheet.set_value(i, 1, Value::Text(key.to_string()));
-                sheet.set_value(i, 2, percent!(value));
-                i += 1;
-            }
+            row += 8;
+            let region_indicators = RegionIndicator::from_portfolio(portfolio);
+            row = self.write_distribution_by_region(
+                &mut sheet,
+                "Distribution by Region",
+                &region_indicators,
+                row,
+            )?;
 
-            let heat_map = self.indicators.make_month_heat_map();
-            i = self.write_month_heat_map_(&mut sheet, "Heat Map By Month", 2 + i, &heat_map)?;
-
-            let heat_map = self.indicators.make_year_heat_map();
-            self.write_year_heat_map_(&mut sheet, "Heat Map By Year", 2 + i, &heat_map)?;
+            let heat_map =
+                HeatMap::from_portfolios(self.indicators, HeatMapPeriod::Monthly, |indicator| {
+                    indicator.pnl_percent
+                });
+            row =
+                self.write_heat_map_monthly_(&mut sheet, "Heat Map By Month", row + 2, heat_map)?;
+            let heat_map =
+                HeatMap::from_portfolios(self.indicators, HeatMapPeriod::Yearly, |indicator| {
+                    indicator.pnl_percent
+                });
+            self.write_heat_map_yearly_(&mut sheet, "Heat Map By Year", row + 2, heat_map)?;
         }
 
         self.add_sheet(sheet);
@@ -314,159 +228,131 @@ impl<'a> OdsOutput<'a> {
     }
 
     fn write_trades(&mut self) -> Result<(), Error> {
-        let mut sheet = Sheet::new("Trades");
+        let inputs = self.portfolio.positions.iter().flat_map(|position| {
+            position
+                .trades
+                .iter()
+                .filter(|trade| {
+                    (trade.date.date() < self.indicators.end)
+                        && (trade.date.date() > self.indicators.begin)
+                        && self
+                            .filter_indicators
+                            .map_or(true, |date| date < trade.date.date())
+                })
+                .map(|trade| (&position.instrument, trade))
+        });
 
-        // header
-        for (i, header_name) in [
-            "Date",
-            "Instrument",
-            "Quantity",
-            "Way",
-            "Unit Price",
-            "Price",
-            "Tax",
-        ]
-        .iter()
-        .enumerate()
-        {
-            sheet.set_value(0, i as u32, Value::Text(header_name.to_string()));
-        }
-
-        let date_style_ref = self.get_date_style("DD/MM/YYYY")?;
-        sheet.set_col_cellstyle(0, &date_style_ref);
-
-        let currency_style_ref = self.get_currency_style(&self.portfolio.currency.name)?;
-        for i in [4, 5, 6] {
-            sheet.set_col_cellstyle(i, &currency_style_ref);
-        }
-
-        for (row, (instrument, trade)) in self
-            .portfolio
-            .positions
-            .iter()
-            .flat_map(|position| {
-                position
-                    .trades
-                    .iter()
-                    .filter(|trade| {
-                        (trade.date.date() < self.indicators.end)
-                            && (trade.date.date() > self.indicators.begin)
-                            && self
-                                .filter_indicators
-                                .map_or(true, |date| date < trade.date.date())
-                    })
-                    .map(|trade| (&position.instrument, trade))
+        let mut table = TableBuilder::new();
+        table
+            .add("Date", |(_, trade): &(&Rc<Instrument>, &Trade)| trade.date)
+            .add(
+                "Instrument",
+                |(instrument, _): &(&Rc<Instrument>, &Trade)| &instrument.name,
+            )
+            .add("Quantity", |(_, trade): &(&Rc<Instrument>, &Trade)| {
+                trade.quantity
             })
-            .enumerate()
-        {
-            let row = 1 + row as u32;
-            sheet.set_value(row, 0, trade.date);
-            sheet.set_value(row, 1, &instrument.name);
-            sheet.set_value(row, 2, trade.quantity);
-            sheet.set_value(row, 3, format!("{}", trade.way));
-            sheet.set_value(
-                row,
-                4,
-                currency!(
-                    &instrument.currency.name,
-                    trade.price + trade.tax / trade.quantity
-                ),
-            );
-            sheet.set_value(row, 5, currency!(&instrument.currency.name, trade.price));
-            sheet.set_value(row, 6, currency!(&instrument.currency.name, trade.tax))
-        }
+            .add("Way", |(_, trade): &(&Rc<Instrument>, &Trade)| {
+                trade.way.to_string()
+            })
+            .add(
+                "Unit Price",
+                |(instrument, trade): &(&Rc<Instrument>, &Trade)| {
+                    currency!(
+                        &instrument.currency.name,
+                        trade.price + trade.tax / trade.quantity
+                    )
+                },
+            )
+            .add(
+                "Price",
+                |(instrument, trade): &(&Rc<Instrument>, &Trade)| {
+                    currency!(&instrument.currency.name, trade.price)
+                },
+            )
+            .add("Tax", |(instrument, trade): &(&Rc<Instrument>, &Trade)| {
+                currency!(&instrument.currency.name, trade.tax)
+            });
 
+        let mut sheet = Sheet::new("Trades");
+        table.write(&mut sheet, self, 0, 0, inputs);
         self.add_sheet(sheet);
+
         Ok(())
     }
 
     fn write_position_indicators(&mut self) -> Result<(), Error> {
-        let mut sheet = Sheet::new("Indicators");
-
-        // header
-        for (i, header_name) in [
-            "Date",
-            "Cash",
-            "Incoming Transfert",
-            "Outcoming Transfert",
-            "Valuation",
-            "Nominal",
-            "Dividends",
-            "Tax",
-            "P&L(%)",
-            "P&L Daily(%)",
-            "P&L Weekly(%)",
-            "P&L Monthly(%)",
-            "P&L Yearly(%)",
-            "P&L for 3 Months(%)",
-            "P&L for one Year(%)",
-            "P&L",
-            "P&L Daily",
-            "P&L Weekly",
-            "P&L Monthly",
-            "P&L Yearly",
-            "P&L for 3 Months",
-            "P&L for one Year",
-            "Volatility 3M",
-            "Volatility 1Y",
-            "Earning",
-            "Earning + Valuation",
-        ]
-        .iter()
-        .enumerate()
-        {
-            sheet.set_value(0, i as u32, Value::Text(header_name.to_string()));
-        }
-
-        let date_style_ref = self.get_date_style("DD/MM/YYYY")?;
-        sheet.set_col_cellstyle(0, &date_style_ref);
-
-        let currency_style_ref = self.get_currency_style(&self.portfolio.currency.name)?;
-        for i in [1, 2, 3, 4, 5, 6, 7, 15, 16, 17, 18, 19, 20, 21, 24, 25] {
-            sheet.set_col_cellstyle(i, &currency_style_ref);
-        }
-
-        let mut have_line = false;
-        for (i, portfolio_indicator) in self
+        let inputs = self
             .indicators
             .portfolios
             .iter()
-            .filter(|item| self.filter_indicators.map_or(true, |date| date < item.date))
-            .enumerate()
-        {
-            have_line = true;
-            sheet.set_value(1 + i as u32, 0, portfolio_indicator.date);
-            sheet.set_value(
-                1 + i as u32,
-                1,
-                currency!(&self.portfolio.currency.name, portfolio_indicator.cash),
-            );
-            sheet.set_value(
-                1 + i as u32,
-                2,
-                currency!(
-                    &self.portfolio.currency.name,
-                    portfolio_indicator.incoming_transfer
-                ),
-            );
-            sheet.set_value(
-                1 + i as u32,
-                3,
-                currency!(
-                    &self.portfolio.currency.name,
-                    portfolio_indicator.outcoming_transfer
-                ),
-            );
-            update_sheet_with_indicator!(
-                sheet,
-                1 + i as u32,
-                4,
-                self.portfolio.currency,
-                portfolio_indicator
-            );
-        }
+            .filter(|item| self.filter_indicators.map_or(true, |date| date < item.date));
 
-        if have_line {
+        let mut table = TableBuilder::new();
+        table
+            .add("Date", |portfolio_indicator: &&PortfolioIndicator| {
+                portfolio_indicator.date
+            })
+            .add("Valuation", |portfolio_indicator: &&PortfolioIndicator| {
+                currency!(&self.portfolio.currency.name, portfolio_indicator.valuation)
+            })
+            .add("Nominal", |portfolio_indicator: &&PortfolioIndicator| {
+                currency!(&self.portfolio.currency.name, portfolio_indicator.nominal)
+            })
+            .add(
+                "Incoming Transfert",
+                |portfolio_indicator: &&PortfolioIndicator| {
+                    currency!(
+                        &self.portfolio.currency.name,
+                        portfolio_indicator.incoming_transfer
+                    )
+                },
+            )
+            .add(
+                "Outcoming Transfert",
+                |portfolio_indicator: &&PortfolioIndicator| {
+                    currency!(
+                        &self.portfolio.currency.name,
+                        portfolio_indicator.outcoming_transfer
+                    )
+                },
+            )
+            .add("Cash", |portfolio_indicator: &&PortfolioIndicator| {
+                currency!(&self.portfolio.currency.name, portfolio_indicator.cash)
+            })
+            .add("Dividends", |portfolio_indicator: &&PortfolioIndicator| {
+                currency!(&self.portfolio.currency.name, portfolio_indicator.dividends)
+            })
+            .add("Tax", |portfolio_indicator: &&PortfolioIndicator| {
+                currency!(&self.portfolio.currency.name, portfolio_indicator.tax)
+            })
+            .add("P&L", |portfolio_indicator: &&PortfolioIndicator| {
+                currency!(
+                    &self.portfolio.currency.name,
+                    portfolio_indicator.pnl_currency
+                )
+            })
+            .add("P&L(%)", |portfolio_indicator: &&PortfolioIndicator| {
+                percent!(portfolio_indicator.pnl_percent)
+            })
+            .add("TWR", |portfolio_indicator: &&PortfolioIndicator| {
+                percent!(portfolio_indicator.twr)
+            })
+            .add("Earning", |portfolio_indicator: &&PortfolioIndicator| {
+                currency!(&self.portfolio.currency.name, portfolio_indicator.earning)
+            })
+            .add(
+                "Earning Latent",
+                |portfolio_indicator: &&PortfolioIndicator| {
+                    currency!(
+                        &self.portfolio.currency.name,
+                        portfolio_indicator.earning_latent
+                    )
+                },
+            );
+
+        let mut sheet = Sheet::new("Indicators");
+        if table.write(&mut sheet, self, 0, 0, inputs) != 1 {
             self.add_sheet(sheet);
         } else {
             self.remove_sheet(sheet.name());
@@ -475,88 +361,107 @@ impl<'a> OdsOutput<'a> {
         Ok(())
     }
 
-    fn write_position_instrument_indicators(&mut self, instrument_name: &str) -> Result<(), Error> {
-        let mut sheet = Sheet::new(format!("Indicators-{}", instrument_name));
-
-        // header
-        for (i, header_name) in [
-            "Date",
-            "Spot(Close)",
-            "Quantity",
-            "Unit Price",
-            "Valuation",
-            "Nominal",
-            "Dividends",
-            "Tax",
-            "P&L(%)",
-            "P&L Daily(%)",
-            "P&L Weekly(%)",
-            "P&L Monthly(%)",
-            "P&L Yearly(%)",
-            "P&L for 3 Months(%)",
-            "P&L for Year(%)",
-            "P&L",
-            "P&L Daily",
-            "P&L Weekly",
-            "P&L Monthly",
-            "P&L Yearly",
-            "P&L for 3 Months",
-            "P&L for one Year",
-            "Volatility 3M",
-            "Volatility 1Y",
-            "Earning",
-            "Earning + Valuation",
-        ]
-        .iter()
-        .enumerate()
-        {
-            sheet.set_value(0, i as u32, Value::Text(header_name.to_string()));
-        }
-
-        let date_style_ref = self.get_date_style("DD/MM/YYYY")?;
-        sheet.set_col_cellstyle(0, &date_style_ref);
-
-        let mut defined_currency_col = false;
-        let mut have_line = false;
-        for (i, position_indicator) in self
-            .indicators
-            .by_instrument_name(instrument_name)
+    fn write_position_instrument_indicators(
+        &mut self,
+        indicators: PositionIndicators,
+    ) -> Result<(), Error> {
+        let inputs = indicators
+            .positions
             .iter()
-            .filter(|item| self.filter_indicators.map_or(true, |date| date < item.date))
-            .enumerate()
-        {
-            have_line = true;
+            .filter(|item| self.filter_indicators.map_or(true, |date| date < item.date));
 
-            if !defined_currency_col {
-                let currency_style_ref =
-                    self.get_currency_style(&position_indicator.instrument.currency.name)?;
-                for i in [1, 3, 4, 5, 6, 7, 15, 16, 17, 18, 19, 20, 21, 24, 25] {
-                    sheet.set_col_cellstyle(i, &currency_style_ref);
-                }
-                defined_currency_col = true;
-            }
-
-            sheet.set_value(1 + i as u32, 0, position_indicator.date);
-            sheet.set_value(1 + i as u32, 1, position_indicator.spot.close());
-            sheet.set_value(1 + i as u32, 2, position_indicator.quantity);
-            sheet.set_value(
-                1 + i as u32,
-                3,
+        let mut table = TableBuilder::new();
+        table
+            .add("Date", |position_indicator: &&&PositionIndicator| {
+                position_indicator.date
+            })
+            .add("Spot(Close)", |position_indicator: &&&PositionIndicator| {
+                currency!(
+                    &position_indicator.instrument.currency.name,
+                    position_indicator.spot.close
+                )
+            })
+            .add("Quantity", |position_indicator: &&&PositionIndicator| {
+                position_indicator.quantity
+            })
+            .add("Unit Price", |position_indicator: &&&PositionIndicator| {
                 currency!(
                     &position_indicator.instrument.currency.name,
                     position_indicator.unit_price
-                ),
-            );
-            update_sheet_with_indicator!(
-                sheet,
-                1 + i as u32,
-                4,
-                position_indicator.instrument.currency,
-                position_indicator
-            );
-        }
+                )
+            })
+            .add("Valuation", |position_indicator: &&&PositionIndicator| {
+                currency!(
+                    &position_indicator.instrument.currency.name,
+                    position_indicator.valuation
+                )
+            })
+            .add("Nominal", |position_indicator: &&&PositionIndicator| {
+                currency!(
+                    &position_indicator.instrument.currency.name,
+                    position_indicator.nominal
+                )
+            })
+            .add("Cashflow", |position_indicator: &&&PositionIndicator| {
+                currency!(
+                    &position_indicator.instrument.currency.name,
+                    position_indicator.cashflow
+                )
+            })
+            .add("Dividends", |position_indicator: &&&PositionIndicator| {
+                currency!(
+                    &position_indicator.instrument.currency.name,
+                    position_indicator.dividends
+                )
+            })
+            .add("Tax", |position_indicator: &&&PositionIndicator| {
+                currency!(
+                    &position_indicator.instrument.currency.name,
+                    position_indicator.tax
+                )
+            })
+            .add("P&L", |position_indicator: &&&PositionIndicator| {
+                currency!(
+                    &position_indicator.instrument.currency.name,
+                    position_indicator.pnl_currency
+                )
+            })
+            .add("P&L(%)", |position_indicator: &&&PositionIndicator| {
+                percent!(position_indicator.pnl_percent)
+            })
+            .add("TWR", |position_indicator: &&&PositionIndicator| {
+                percent!(position_indicator.twr)
+            })
+            .add("Earning", |position_indicator: &&&PositionIndicator| {
+                currency!(
+                    &position_indicator.instrument.currency.name,
+                    position_indicator.earning
+                )
+            })
+            .add(
+                "Earning Latent",
+                |position_indicator: &&&PositionIndicator| {
+                    currency!(
+                        &position_indicator.instrument.currency.name,
+                        position_indicator.earning_latent
+                    )
+                },
+            )
+            .add("Cost", |position_indicator: &&&PositionIndicator| {
+                currency!(
+                    &position_indicator.instrument.currency.name,
+                    position_indicator.cost
+                )
+            })
+            .add("Is Close", |position_indicator: &&&PositionIndicator| {
+                Value::Boolean(position_indicator.is_close)
+            });
 
-        if have_line {
+        let mut sheet = Sheet::new(format!(
+            "Indicators-{}-{}",
+            indicators.instrument_name, indicators.position_index
+        ));
+        if table.write(&mut sheet, self, 0, 0, inputs) != 1 {
             self.add_sheet(sheet);
         } else {
             self.remove_sheet(sheet.name());
@@ -568,15 +473,51 @@ impl<'a> OdsOutput<'a> {
     fn write_heat_map(&mut self) -> Result<(), Error> {
         let mut sheet = Sheet::new("Heat Map");
 
-        let heat_map = self.indicators.make_month_heat_map();
-        let mut end_row = self.write_month_heat_map_(&mut sheet, "Portfolio", 0, &heat_map)?;
+        let heat_map =
+            HeatMap::from_portfolios(self.indicators, HeatMapPeriod::Monthly, |indicator| {
+                indicator.pnl_percent
+            });
+        let mut row = self.write_heat_map_monthly_(&mut sheet, "Portfolio Monthly", 0, heat_map)?;
+        let heat_map =
+            HeatMap::from_portfolios(self.indicators, HeatMapPeriod::Yearly, |indicator| {
+                indicator.pnl_percent
+            });
+        row = self.write_heat_map_yearly_(&mut sheet, "Portfolio Yearly", row + 1, heat_map)?;
 
         for instrument_name in self.portfolio.get_instrument_name_list() {
-            let heat_map = self
-                .indicators
-                .make_month_instrument_heat_map(instrument_name);
-            end_row =
-                self.write_month_heat_map_(&mut sheet, instrument_name, end_row + 2, &heat_map)?;
+            for position_index in self.indicators.get_position_index_list(instrument_name) {
+                debug!(
+                    "write position indicators for {} / {}",
+                    instrument_name, position_index
+                );
+                let position_indicators = self
+                    .indicators
+                    .get_position_indicators(instrument_name, position_index);
+
+                let heat_map = HeatMap::from_positions(
+                    &position_indicators,
+                    HeatMapPeriod::Monthly,
+                    |indicator| indicator.pnl_percent,
+                );
+                row = self.write_heat_map_monthly_(
+                    &mut sheet,
+                    &format!("Portfolio Monthly {} / {}", instrument_name, position_index),
+                    row + 1,
+                    heat_map,
+                )?;
+
+                let heat_map = HeatMap::from_positions(
+                    &position_indicators,
+                    HeatMapPeriod::Yearly,
+                    |indicator| indicator.pnl_percent,
+                );
+                row = self.write_heat_map_yearly_(
+                    &mut sheet,
+                    &format!("Portfolio Yearly {} / {}", instrument_name, position_index),
+                    row + 1,
+                    heat_map,
+                )?;
+            }
         }
 
         self.add_sheet(sheet);
@@ -586,25 +527,23 @@ impl<'a> OdsOutput<'a> {
     fn write_distribution(&mut self) -> Result<(), Error> {
         let mut sheet = Sheet::new("Distribution");
         if let Some(portfolio) = self.indicators.portfolios.last() {
-            let mut row = self.write_distribution_(
-                &mut sheet,
-                "by region",
-                portfolio.make_distribution_by_region(),
-                0,
-            )?;
+            let region_indicators = RegionIndicator::from_portfolio(portfolio);
+            let mut row =
+                self.write_distribution_by_region(&mut sheet, "by region", &region_indicators, 0)?;
 
-            row = self.write_distribution_(
+            let intrument_indicators = InstrumentIndicator::from_portfolio(portfolio);
+            row = self.write_distribution_by_instrument(
                 &mut sheet,
                 "by instrument",
-                portfolio.make_distribution_global_by_instrument(),
+                &intrument_indicators,
                 row + 2,
             )?;
 
-            for region_name in self.portfolio.get_region_name_list() {
-                row = self.write_distribution_(
+            for region_indicator in region_indicators {
+                row = self.write_distribution_global_by_instrument(
                     &mut sheet,
-                    &format!("by instrument in {}", region_name),
-                    portfolio.make_distribution_by_instrument(region_name),
+                    &format!("by instrument in {}", region_indicator.region_name),
+                    &region_indicator.instruments,
                     row + 2,
                 )?;
             }
@@ -613,28 +552,60 @@ impl<'a> OdsOutput<'a> {
         Ok(())
     }
 
-    fn write_distribution_(
+    fn write_distribution_by_region(
         &mut self,
         sheet: &mut Sheet,
         name: &str,
-        data: HashMap<String, f64>,
+        data: &Vec<RegionIndicator>,
         mut row: u32,
     ) -> Result<u32, Error> {
         sheet.set_value(row, 0, Value::Text(name.to_string()));
-        for (key, value) in data {
-            sheet.set_value(row, 1, Value::Text(key.to_string()));
-            sheet.set_value(row, 2, percent!(value));
+        for indicator in data {
+            sheet.set_value(row, 1, Value::Text(indicator.region_name.to_string()));
+            sheet.set_value(row, 2, percent!(indicator.valuation_percent));
             row += 1;
         }
         Ok(row)
     }
 
-    fn write_month_heat_map_(
+    fn write_distribution_by_instrument(
+        &mut self,
+        sheet: &mut Sheet,
+        name: &str,
+        data: &Vec<InstrumentIndicator>,
+        mut row: u32,
+    ) -> Result<u32, Error> {
+        sheet.set_value(row, 0, Value::Text(name.to_string()));
+        for indicator in data {
+            sheet.set_value(row, 1, Value::Text(indicator.instrument.name.to_string()));
+            sheet.set_value(row, 2, percent!(indicator.valuation_percent));
+            row += 1;
+        }
+        Ok(row)
+    }
+
+    fn write_distribution_global_by_instrument(
+        &mut self,
+        sheet: &mut Sheet,
+        name: &str,
+        data: &Vec<RegionIndicatorInstrument>,
+        mut row: u32,
+    ) -> Result<u32, Error> {
+        sheet.set_value(row, 0, Value::Text(name.to_string()));
+        for indicator in data {
+            sheet.set_value(row, 1, Value::Text(indicator.instrument.name.to_string()));
+            sheet.set_value(row, 2, percent!(indicator.valuation_percent));
+            row += 1;
+        }
+        Ok(row)
+    }
+
+    fn write_heat_map_monthly_(
         &mut self,
         sheet: &mut Sheet,
         name: &str,
         mut row: u32,
-        heat_map: &BTreeMap<i32, HeatMapItem>,
+        heat_map: HeatMap,
     ) -> Result<u32, Error> {
         sheet.set_value(row, 0, Value::Text(name.to_string()));
         for (i, header_name) in [
@@ -647,11 +618,17 @@ impl<'a> OdsOutput<'a> {
         }
         row += 1;
 
-        for (year, item) in heat_map {
+        let mut data: BTreeMap<i32, [Option<f64>; 12]> = Default::default();
+        for (date, value) in heat_map.data {
+            let row = data.entry(date.year()).or_default();
+            row[date.month0() as usize] = Some(value);
+        }
+
+        for (year, values) in data {
             sheet.set_value(row, 1, year);
-            for (pos, value) in item.data().iter().enumerate() {
+            for (pos, value) in values.into_iter().enumerate() {
                 if let Some(pct) = value {
-                    sheet.set_value(row, 2 + pos as u32, percent!(*pct));
+                    sheet.set_value(row, 2 + pos as u32, percent!(pct));
                 }
             }
             row += 1;
@@ -660,17 +637,17 @@ impl<'a> OdsOutput<'a> {
         Ok(row)
     }
 
-    fn write_year_heat_map_(
+    fn write_heat_map_yearly_(
         &mut self,
         sheet: &mut Sheet,
         name: &str,
         mut row: u32,
-        heat_map: &BTreeMap<i32, f64>,
+        heat_map: HeatMap,
     ) -> Result<u32, Error> {
         sheet.set_value(row, 0, Value::Text(name.to_string()));
-        for (year, value) in heat_map {
-            sheet.set_value(row, 1, year);
-            sheet.set_value(row, 2, percent!(*value));
+        for (date, value) in heat_map.data {
+            sheet.set_value(row, 1, date.year());
+            sheet.set_value(row, 2, percent!(value));
             row += 1;
         }
         Ok(row)
@@ -712,33 +689,60 @@ impl<'a> OdsOutput<'a> {
         Err(Error::new_output(format!("unsupported date format {name}")))
     }
 
-    fn get_date_style(&mut self, date_format: &str) -> Result<CellStyleRef, Error> {
-        let style_name = format!("date_style_{}", date_format);
-        if let Some(value) = self.work_book.cellstyle(&style_name) {
-            return Ok(value.style_ref());
+    fn create_date_style(&mut self, date_format: &str) -> Result<(), Error> {
+        if self.get_date_style(date_format).is_some() {
+            return Ok(());
         }
 
         let value_format_ref = self.get_date_format(date_format)?;
-        let date_style = spreadsheet_ods::CellStyle::new(&style_name, &value_format_ref);
-        let date_style_ref = self.work_book.add_cellstyle(date_style);
-        Ok(date_style_ref)
+        let date_style = spreadsheet_ods::CellStyle::new(
+            Self::make_date_style_name_(date_format),
+            &value_format_ref,
+        );
+        self.work_book.add_cellstyle(date_style);
+        Ok(())
     }
 
-    fn get_currency_style(&mut self, currency_name: &str) -> Result<CellStyleRef, Error> {
-        let style_name = format!("currency_style_{}", currency_name);
-        if let Some(value) = self.work_book.cellstyle(&style_name) {
-            return Ok(value.style_ref());
+    fn create_currency_style(&mut self, currency_name: &str) -> Result<(), Error> {
+        if self.get_currency_style(currency_name).is_some() {
+            return Ok(());
         }
 
         let value_format_ref = self.get_currency_format(currency_name)?;
-        let currency_style = spreadsheet_ods::CellStyle::new(&style_name, &value_format_ref);
-        let currency_style_ref = self.work_book.add_cellstyle(currency_style);
-        Ok(currency_style_ref)
+        let currency_style = spreadsheet_ods::CellStyle::new(
+            Self::make_currency_style_name_(currency_name),
+            &value_format_ref,
+        );
+        self.work_book.add_cellstyle(currency_style);
+        Ok(())
+    }
+
+    fn make_currency_style_name_(currency_name: &str) -> String {
+        format!("currency_style_{}", currency_name)
+    }
+
+    fn make_date_style_name_(date_format: &str) -> String {
+        format!("date_style_{}", date_format)
+    }
+
+    fn get_style_by_name_(&self, name: &str) -> Option<CellStyleRef> {
+        self.work_book.cellstyle(name).map(|item| item.style_ref())
+    }
+
+    fn get_currency_style(&self, currency_name: &str) -> Option<CellStyleRef> {
+        self.get_style_by_name_(&Self::make_currency_style_name_(currency_name))
+    }
+
+    fn get_date_style(&self, date_format: &str) -> Option<CellStyleRef> {
+        self.get_style_by_name_(&Self::make_date_style_name_(date_format))
     }
 }
 
 impl<'a> Output for OdsOutput<'a> {
     fn write_indicators(&mut self) -> Result<(), Error> {
+        debug!("create style");
+        self.create_style()?;
+
         debug!("write summary");
         self.write_summary()?;
 
@@ -755,8 +759,16 @@ impl<'a> Output for OdsOutput<'a> {
         self.write_position_indicators()?;
 
         for instrument_name in self.portfolio.get_instrument_name_list() {
-            debug!("write position indicators for {}", instrument_name);
-            self.write_position_instrument_indicators(instrument_name)?;
+            for position_index in self.indicators.get_position_index_list(instrument_name) {
+                debug!(
+                    "write position indicators for {} / {}",
+                    instrument_name, position_index
+                );
+                let position_indicators = self
+                    .indicators
+                    .get_position_indicators(instrument_name, position_index);
+                self.write_position_instrument_indicators(position_indicators)?;
+            }
         }
 
         debug!("save");
