@@ -1,0 +1,10 @@
+{
+  "name" : "MTF",
+  "isin" : "LU1287023268",
+  "description" : "Amundi Euro Government Bond 15+Y UCITS ETF Acc",
+  "market" : "EPA",
+  "currency" : "EUR",
+  "region" : "Europe",
+  "fund_category" : "Bond",
+  "ticker_yahoo" : "MTF.PA"
+}
