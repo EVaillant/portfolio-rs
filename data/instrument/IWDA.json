@@ -1,0 +1,10 @@
+{
+  "name" : "IWDA",
+  "isin" : "IE00B4L5Y983",
+  "description" : "iShares Core MSCI World UCITS ETF USD (Acc)",
+  "market" : "EAS",
+  "currency" : "EUR",
+  "region" : "World",
+  "fund_category" : "Equity World",
+  "ticker_yahoo" : "IWDA.AS"
+}
