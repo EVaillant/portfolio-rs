@@ -207,7 +207,7 @@ mod tests {
             market,
             currency,
             ticker_yahoo: None,
-            region: String::from("region"),
+            region: None,
             fund_category: String::from("category"),
             dividends: None,
         })

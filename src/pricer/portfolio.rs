@@ -233,7 +233,7 @@ mod tests {
             market: market.clone(),
             currency: currency.clone(),
             ticker_yahoo: None,
-            region: String::from("region"),
+            region: None,
             fund_category: String::from("category"),
             dividends: None,
         });
