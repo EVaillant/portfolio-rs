@@ -4,7 +4,6 @@
   "description" : "21Shares Bitcoin ETP",
   "market" : "EPA",
   "currency" : "EUR",
-  "region" : "Currency",
   "fund_category" : "Crypto",
   "ticker_yahoo" : "ABTC.PA"
 }

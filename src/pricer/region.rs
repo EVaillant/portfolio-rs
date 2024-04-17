@@ -19,8 +19,8 @@ impl RegionIndicator {
         let regions = indicator
             .positions
             .iter()
-            .filter(|position| !position.is_close)
-            .map(|position| &position.instrument.region)
+            .filter(|position| !position.is_close && position.instrument.region.is_some())
+            .map(|position| position.instrument.region.as_ref().unwrap())
             .collect::<HashSet<_>>();
 
         let valuation = indicator
@@ -38,7 +38,14 @@ impl RegionIndicator {
                 indicator
                     .positions
                     .iter()
-                    .filter(|position| !position.is_close && position.instrument.region == *region)
+                    .filter(|position| {
+                        !position.is_close
+                            && position
+                                .instrument
+                                .region
+                                .as_ref()
+                                .map_or(false, |item| *item == *region)
+                    })
                     .for_each(|position| {
                         let value = valuation_by_instrument
                             .entry(position.instrument.clone())

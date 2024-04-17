@@ -10,7 +10,7 @@ pub struct Instrument {
     pub market: Rc<Market>,
     pub currency: Rc<Currency>,
     pub ticker_yahoo: Option<String>,
-    pub region: String,
+    pub region: Option<String>,
     pub fund_category: String,
     pub dividends: Option<Vec<Dividend>>,
 }

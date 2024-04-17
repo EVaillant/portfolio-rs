@@ -330,7 +330,7 @@ impl Deserialize for Instrument {
         let market = deserializer.resolv_market("market")?;
         let currency = deserializer.resolv_currency("currency")?;
         let ticker_yahoo = deserializer.read_option("ticker_yahoo")?;
-        let region = deserializer.read("region")?;
+        let region = deserializer.read_option("region")?;
         let fund_category = deserializer.read("fund_category")?;
         let dividends = deserializer.read_option("dividends")?;
         Ok(Instrument {
