@@ -1,7 +1,9 @@
+use chrono::Local;
 use clap::{Parser, ValueEnum};
 use env_logger::Builder;
 use log::info;
 use log::LevelFilter;
+use std::io::Write;
 
 mod alias;
 mod error;
@@ -116,10 +118,19 @@ fn main() -> Result<(), Error> {
 
     //
     // logger
-    let mut builder = Builder::new();
-    builder.filter_level(LevelFilter::Info);
-    builder.parse_default_env();
-    builder.init();
+    Builder::new()
+        .format(|buf, record| {
+            writeln!(
+                buf,
+                "{} [{}] - {}",
+                Local::now().format("%Y-%m-%dT%H:%M:%S"),
+                record.level(),
+                record.args()
+            )
+        })
+        .filter_level(LevelFilter::Info)
+        .parse_default_env()
+        .init();
 
     //
     // get pricing date
