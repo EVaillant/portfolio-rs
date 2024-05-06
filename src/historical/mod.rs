@@ -32,7 +32,6 @@ impl DataFrame {
 
 pub trait Provider {
     fn fetch(&mut self, instrument: &Instrument, begin: Date, end: Date) -> Result<(), Error>;
-    fn get(&self, instrument: &Instrument, date: Date) -> Option<&DataFrame>;
     fn latest(&self, instrument: &Instrument, date: Date) -> Option<&DataFrame>;
 }
 
@@ -71,10 +70,6 @@ struct CacheInstrument {
 impl CacheInstrument {
     fn new(begin: Date, end: Date, data: Vec<DataFrame>) -> Self {
         Self { begin, end, data }
-    }
-
-    fn get(&self, date: Date) -> Option<&DataFrame> {
-        self.data.iter().find(|item| item.date == date)
     }
 
     fn latest(&self, date: Date) -> Option<&DataFrame> {
@@ -225,13 +220,6 @@ where
         }
 
         Ok(())
-    }
-
-    fn get(&self, instrument: &Instrument, date: Date) -> Option<&DataFrame> {
-        match self.cache.get(&instrument.name) {
-            Some(item) => item.get(date),
-            None => None,
-        }
     }
 
     fn latest(&self, instrument: &Instrument, date: Date) -> Option<&DataFrame> {
