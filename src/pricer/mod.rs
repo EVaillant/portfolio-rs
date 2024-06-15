@@ -19,6 +19,7 @@ pub use portfolio::PortfolioIndicator;
 pub use position::PositionIndicator;
 pub use region::{RegionIndicator, RegionIndicatorInstrument};
 
+#[allow(dead_code)]
 pub struct PositionIndicators<'a> {
     pub begin: Date,
     pub end: Date,

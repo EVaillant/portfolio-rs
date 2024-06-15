@@ -16,6 +16,7 @@ impl HeatMapPeriod {
         }
     }
 }
+#[allow(dead_code)]
 pub struct HeatMap {
     pub data: Vec<(Date, f64)>,
     pub period: HeatMapPeriod,
