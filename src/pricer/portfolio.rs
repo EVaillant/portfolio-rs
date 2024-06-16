@@ -67,7 +67,6 @@ impl Sum for PositionAccumulator {
 }
 
 #[derive(Default)]
-#[allow(dead_code)]
 pub struct PortfolioIndicator {
     pub date: Date,
     pub positions: Vec<PositionIndicator>,

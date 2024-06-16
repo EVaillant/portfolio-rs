@@ -3,7 +3,6 @@ use crate::marketdata::{Currency, Market};
 use std::rc::Rc;
 
 #[derive(Debug)]
-#[allow(dead_code)]
 pub struct Instrument {
     pub name: String,
     pub isin: String,
