@@ -175,7 +175,7 @@ impl<'a> CsvOutput<'a> {
     ) -> Result<(), Error> {
         let mut output_stream = File::create(filename)?;
         output_stream.write_all(
-          "Date;Instrument;Spot(Close);Quantity;Quantity Buy;Quantity Sell;Unit Price;Valuation;Nominal;Cashflow;Dividends;Tax;P&L;P&L(%);TWR;Earning;Earning Latent;Cost;Is Close\n".as_bytes(),
+          "Date;Instrument;Spot(Close);Quantity;Quantity Buy;Quantity Sell;Unit Price;Valuation;Nominal;Cashflow;Dividends;Tax;P&L;P&L(%);TWR;Earning;Earning Latent;Is Close\n".as_bytes(),
         )?;
         let mut have_line = false;
         for position_indicator in indicators
@@ -186,7 +186,7 @@ impl<'a> CsvOutput<'a> {
             have_line = true;
             output_stream.write_all(
                 format!(
-                    "{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{}\n",
+                    "{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{};{}\n",
                     position_indicator.date.format("%Y-%m-%d"),
                     position_indicator.instrument.name,
                     position_indicator.spot.close,
@@ -204,7 +204,6 @@ impl<'a> CsvOutput<'a> {
                     position_indicator.twr,
                     position_indicator.earning,
                     position_indicator.earning_latent,
-                    position_indicator.cost,
                     position_indicator.is_close,
                 )
                 .as_bytes(),

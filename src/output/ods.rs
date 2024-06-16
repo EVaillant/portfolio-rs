@@ -447,12 +447,6 @@ impl<'a> OdsOutput<'a> {
                     )
                 },
             )
-            .add("Cost", |position_indicator: &&&PositionIndicator| {
-                currency!(
-                    &position_indicator.instrument.currency.name,
-                    position_indicator.cost
-                )
-            })
             .add("Is Close", |position_indicator: &&&PositionIndicator| {
                 Value::Boolean(position_indicator.is_close)
             });

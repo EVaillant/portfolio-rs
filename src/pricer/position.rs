@@ -26,7 +26,6 @@ pub struct PositionIndicator {
     pub twr: f64,
     pub earning: f64,
     pub earning_latent: f64,
-    pub cost: f64,
     pub is_close: bool,
 }
 
@@ -72,8 +71,6 @@ impl PositionIndicator {
         let earning = dividends + Self::compute_earning_without_div_(position, date);
         let earning_latent = earning + valuation;
 
-        let cost = Self::compute_cost_(position, date);
-
         PositionIndicator {
             date,
             spot: *spot,
@@ -93,7 +90,6 @@ impl PositionIndicator {
             twr,
             earning,
             earning_latent,
-            cost,
             is_close,
         }
     }
@@ -167,17 +163,11 @@ impl PositionIndicator {
         position
             .trades
             .iter()
-            .filter(|trade| trade.date.date() <= date && trade.way == Way::Sell)
-            .map(|trade| trade.price * trade.quantity - trade.tax)
-            .sum()
-    }
-
-    fn compute_cost_(position: &Position, date: Date) -> f64 {
-        position
-            .trades
-            .iter()
-            .filter(|trade| trade.date.date() <= date && trade.way == Way::Buy)
-            .map(|trade| trade.price * trade.quantity + trade.tax)
+            .filter(|trade| trade.date.date() <= date)
+            .map(|trade| match trade.way {
+                Way::Sell => trade.price * trade.quantity - trade.tax,
+                Way::Buy => -trade.price * trade.quantity - trade.tax,
+            })
             .sum()
     }
 }
@@ -459,52 +449,27 @@ mod tests {
         {
             let earning: f64 =
                 PositionIndicator::compute_earning_without_div_(&position, make_date_(2022, 3, 17));
-            assert_float_absolute_eq!(earning, 0.0, 1e-7);
+            assert_float_absolute_eq!(earning, 0.0 - 302.55, 1e-7);
         }
         {
             let earning =
                 PositionIndicator::compute_earning_without_div_(&position, make_date_(2022, 3, 19));
-            assert_float_absolute_eq!(earning, 0.0, 1e-7);
+            assert_float_absolute_eq!(earning, 0.0 - 693.55, 1e-7);
         }
         {
             let earning =
                 PositionIndicator::compute_earning_without_div_(&position, make_date_(2022, 3, 20));
-            assert_float_absolute_eq!(earning, 0.0, 1e-7);
+            assert_float_absolute_eq!(earning, 0.0 - 693.55, 1e-7);
         }
         {
             let earning =
                 PositionIndicator::compute_earning_without_div_(&position, make_date_(2022, 3, 21));
-            assert_float_absolute_eq!(earning, 198.8, 1e-7);
+            assert_float_absolute_eq!(earning, 198.8 - 693.55, 1e-7);
         }
         {
             let earning =
                 PositionIndicator::compute_earning_without_div_(&position, make_date_(2022, 3, 22));
-            assert_float_absolute_eq!(earning, 701.5, 1e-7);
-        }
-    }
-
-    #[test]
-    fn compute_cost() {
-        let position = make_position_();
-        {
-            let cost: f64 = PositionIndicator::compute_cost_(&position, make_date_(2022, 3, 17));
-            assert_float_absolute_eq!(cost, 302.55, 1e-7);
-        }
-        {
-            let cost = PositionIndicator::compute_cost_(&position, make_date_(2022, 3, 19));
-            assert_float_absolute_eq!(cost, 693.55, 1e-7);
-        }
-        {
-            let cost = PositionIndicator::compute_cost_(&position, make_date_(2022, 3, 20));
-            assert_float_absolute_eq!(cost, 693.55, 1e-7);
-        }
-        {
-            let cost = PositionIndicator::compute_cost_(&position, make_date_(2022, 3, 21));
-            assert_float_absolute_eq!(cost, 693.55, 1e-7);
-        }
-        {
-            let cost = PositionIndicator::compute_cost_(&position, make_date_(2022, 3, 22));
-            assert_float_absolute_eq!(cost, 693.55, 1e-7);
+            assert_float_absolute_eq!(earning, 701.5 - 693.55, 1e-7);
         }
     }
 

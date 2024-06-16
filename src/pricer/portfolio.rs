@@ -13,7 +13,6 @@ struct PositionAccumulator {
     pub nominal: f64,
     pub dividends: f64,
     pub tax: f64,
-    pub cost: f64,
     pub earning: f64,
     pub earning_latent: f64,
 }
@@ -37,7 +36,6 @@ impl PositionAccumulator {
             nominal: position.nominal,
             dividends: position.dividends,
             tax: position.tax,
-            cost: position.cost,
             earning: position.earning,
             earning_latent: position.earning_latent,
         }
@@ -53,7 +51,6 @@ impl Add for PositionAccumulator {
             nominal: other.nominal + self.nominal,
             dividends: other.dividends + self.dividends,
             tax: other.tax + self.tax,
-            cost: other.cost + self.cost,
             earning: other.earning + self.earning,
             earning_latent: other.earning_latent + self.earning_latent,
         }
@@ -134,7 +131,7 @@ impl PortfolioIndicator {
             .map(PositionAccumulator::from_open_position)
             .sum::<PositionAccumulator>();
 
-        let cash = outcoming_transfer + incoming_transfer - accumulator.cost + accumulator.earning;
+        let cash = outcoming_transfer + incoming_transfer + accumulator.earning;
         let nominal = cash + accumulator.nominal;
         let valuation = cash + accumulator.valuation;
         let open_nominal = open_accumulator.nominal;
@@ -214,7 +211,6 @@ mod tests {
         dividends: f64,
         earning: f64,
         earning_latent: f64,
-        cost: f64,
         tax: f64,
     ) -> PositionIndicator {
         let date = chrono::NaiveDate::from_ymd_opt(2025, 3, 17).unwrap();
@@ -256,7 +252,6 @@ mod tests {
             twr: 0.0,
             earning,
             earning_latent,
-            cost,
             is_close: false,
         }
     }
@@ -285,7 +280,7 @@ mod tests {
         {
             let date = chrono::NaiveDate::from_ymd_opt(2025, 3, 17).unwrap();
             let positions_indicators = vec![make_fake_position_indicator_(
-                200.0, 190.0, 0.0, 0.0, 0.0, 190.0, 2.0,
+                200.0, 190.0, 0.0, -190.0, -190.0, 2.0,
             )];
 
             let indicator = PortfolioIndicator::from_portfolio(
@@ -302,8 +297,8 @@ mod tests {
             assert_float_absolute_eq!(indicator.valuation, 1010.0, 1e-7);
             assert_float_absolute_eq!(indicator.tax, 2.0, 1e-7);
             assert_float_absolute_eq!(indicator.dividends, 0.0, 1e-7);
-            assert_float_absolute_eq!(indicator.earning, 0.0, 1e-7);
-            assert_float_absolute_eq!(indicator.earning_latent, 0.0, 1e-7);
+            assert_float_absolute_eq!(indicator.earning, -190.0, 1e-7);
+            assert_float_absolute_eq!(indicator.earning_latent, -190.0, 1e-7);
             assert_float_absolute_eq!(indicator.pnl_currency, 10.0, 1e-7);
             assert_float_absolute_eq!(indicator.pnl_percent, 0.01, 1e-7);
             assert_float_absolute_eq!(indicator.twr, 0.01, 1e-7);
@@ -313,8 +308,8 @@ mod tests {
         {
             let date = chrono::NaiveDate::from_ymd_opt(2025, 3, 18).unwrap();
             let positions_indicators = vec![
-                make_fake_position_indicator_(300.0, 190.0, 0.0, 0.0, 0.0, 190.0, 2.0),
-                make_fake_position_indicator_(500.0, 400.0, 0.0, 0.0, 0.0, 400.0, 5.0),
+                make_fake_position_indicator_(300.0, 190.0, 0.0, -190.0, -190.0, 2.0),
+                make_fake_position_indicator_(500.0, 400.0, 0.0, -400.0, -400.0, 5.0),
             ];
 
             let indicator = PortfolioIndicator::from_portfolio(
@@ -331,8 +326,8 @@ mod tests {
             assert_float_absolute_eq!(indicator.valuation, 1210.0, 1e-7);
             assert_float_absolute_eq!(indicator.tax, 7.0, 1e-7);
             assert_float_absolute_eq!(indicator.dividends, 0.0, 1e-7);
-            assert_float_absolute_eq!(indicator.earning, 0.0, 1e-7);
-            assert_float_absolute_eq!(indicator.earning_latent, 0.0, 1e-7);
+            assert_float_absolute_eq!(indicator.earning, -590.0, 1e-7);
+            assert_float_absolute_eq!(indicator.earning_latent, -590.0, 1e-7);
             assert_float_absolute_eq!(indicator.pnl_currency, 210.0, 1e-7);
             assert_float_absolute_eq!(indicator.pnl_percent, 0.21, 1e-7);
             assert_float_absolute_eq!(indicator.twr, 0.21, 1e-7);
