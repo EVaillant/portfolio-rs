@@ -233,8 +233,8 @@ impl<'a> OdsOutput<'a> {
                 .trades
                 .iter()
                 .filter(|trade| {
-                    (trade.date.date() < self.indicators.end)
-                        && (trade.date.date() > self.indicators.begin)
+                    (trade.date.date() <= self.indicators.end)
+                        && (trade.date.date() >= self.indicators.begin)
                         && self
                             .filter_indicators
                             .map_or(true, |date| date < trade.date.date())
