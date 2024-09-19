@@ -21,8 +21,7 @@ struct YahooChart {
 
 #[derive(Debug, Deserialize)]
 struct YahooChartResult {
-    #[serde(deserialize_with = "deserialize_vec_timestamp")]
-    timestamp: Vec<DateTime>,
+    timestamp: Option<Vec<i64>>,
     indicators: YahooChartIndicators,
 }
 
@@ -33,28 +32,11 @@ struct YahooChartIndicators {
 
 #[derive(Debug, Deserialize)]
 struct YahooChartQuote {
-    low: Vec<Option<f64>>,
-    open: Vec<Option<f64>>,
-    close: Vec<Option<f64>>,
-    high: Vec<Option<f64>>,
-    volume: Vec<Option<f64>>,
-}
-
-fn deserialize_vec_timestamp<'de, D>(deserializer: D) -> Result<Vec<DateTime>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    let values: Vec<i64> = Vec::deserialize(deserializer)?;
-    let mut dates = Vec::with_capacity(values.len());
-    for value in values {
-        let date = chrono::DateTime::from_timestamp(value, 0)
-            .ok_or_else(|| {
-                serde::de::Error::custom(format!("unable to create date from timestamp {}", value))
-            })?
-            .naive_local();
-        dates.push(date);
-    }
-    Ok(dates)
+    low: Option<Vec<Option<f64>>>,
+    open: Option<Vec<Option<f64>>>,
+    close: Option<Vec<Option<f64>>>,
+    high: Option<Vec<Option<f64>>>,
+    volume: Option<Vec<Option<f64>>>,
 }
 
 pub struct YahooRequester {
@@ -102,6 +84,10 @@ impl YahooRequester {
         let request_result: YahooResult = serde_json::from_reader(output.as_bytes())?;
         let mut data_frames: Vec<DataFrame> = Vec::new();
         for (instrument_position, result) in request_result.chart.result.iter().enumerate() {
+            if result.timestamp.is_none() {
+                continue;
+            }
+
             let quotes = result
                 .indicators
                 .quote
@@ -112,35 +98,71 @@ impl YahooRequester {
                         instrument_position
                     ))
                 })?;
-            for (date_position, date) in result.timestamp.iter().enumerate() {
+
+            for (date_position, value) in result.timestamp.as_ref().unwrap().iter().enumerate() {
+                let date = chrono::DateTime::from_timestamp(*value, 0)
+                    .ok_or_else(|| {
+                        Error::new_historical(format!(
+                            "unable to create date from timestamp {}",
+                            *value
+                        ))
+                    })?
+                    .naive_local();
                 if date.hour() != 7 || date.minute() != 0 || date.second() != 0 {
                     debug!("skip {} because not a real close", date);
                     continue;
                 }
-                let open = quotes.open.get(date_position).ok_or_else(|| {
-                    Error::new_historical(format!(
-                        "unable to get open at instrument_position:{} date_position:{}",
-                        instrument_position, date_position
-                    ))
-                })?;
-                let close = quotes.close.get(date_position).ok_or_else(|| {
-                    Error::new_historical(format!(
-                        "unable to get close at instrument_position:{} date_position:{}",
-                        instrument_position, date_position
-                    ))
-                })?;
-                let high = quotes.high.get(date_position).ok_or_else(|| {
-                    Error::new_historical(format!(
-                        "unable to get high at instrument_position:{} date_position:{}",
-                        instrument_position, date_position
-                    ))
-                })?;
-                let low = quotes.low.get(date_position).ok_or_else(|| {
-                    Error::new_historical(format!(
-                        "unable to get low at instrument_position:{} date_position:{}",
-                        instrument_position, date_position
-                    ))
-                })?;
+                if quotes.open.is_none()
+                    || quotes.close.is_none()
+                    || quotes.high.is_none()
+                    || quotes.low.is_none()
+                {
+                    continue;
+                }
+                let open = quotes
+                    .open
+                    .as_ref()
+                    .unwrap()
+                    .get(date_position)
+                    .ok_or_else(|| {
+                        Error::new_historical(format!(
+                            "unable to get open at instrument_position:{} date_position:{}",
+                            instrument_position, date_position
+                        ))
+                    })?;
+                let close = quotes
+                    .close
+                    .as_ref()
+                    .unwrap()
+                    .get(date_position)
+                    .ok_or_else(|| {
+                        Error::new_historical(format!(
+                            "unable to get close at instrument_position:{} date_position:{}",
+                            instrument_position, date_position
+                        ))
+                    })?;
+                let high = quotes
+                    .high
+                    .as_ref()
+                    .unwrap()
+                    .get(date_position)
+                    .ok_or_else(|| {
+                        Error::new_historical(format!(
+                            "unable to get high at instrument_position:{} date_position:{}",
+                            instrument_position, date_position
+                        ))
+                    })?;
+                let low = quotes
+                    .low
+                    .as_ref()
+                    .unwrap()
+                    .get(date_position)
+                    .ok_or_else(|| {
+                        Error::new_historical(format!(
+                            "unable to get low at instrument_position:{} date_position:{}",
+                            instrument_position, date_position
+                        ))
+                    })?;
                 if open.is_some() && close.is_some() && high.is_some() && low.is_some() {
                     data_frames.push(DataFrame::new(
                         date.date(),
