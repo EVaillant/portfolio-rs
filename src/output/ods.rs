@@ -480,10 +480,6 @@ impl<'a> OdsOutput<'a> {
 
         for instrument_name in self.portfolio.get_instrument_name_list() {
             for position_index in self.indicators.get_position_index_list(instrument_name) {
-                debug!(
-                    "write position indicators for {} / {}",
-                    instrument_name, position_index
-                );
                 let position_indicators = self
                     .indicators
                     .get_position_indicators(instrument_name, position_index);

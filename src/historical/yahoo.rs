@@ -3,48 +3,58 @@ use crate::alias::Date;
 use crate::error::Error;
 use crate::marketdata::Instrument;
 
-use log::{debug, info, warn};
-use regex::Regex;
+use log::{debug, info};
 use reqwest::blocking::Client;
 use reqwest::header::{HeaderMap, HeaderValue};
 use serde::Deserialize;
-use std::io::Read;
 
 #[derive(Debug, Deserialize)]
-pub struct YahooDataFrame {
-    #[serde(rename = "Date")]
-    #[serde(deserialize_with = "deserialize_date")]
-    date: Date,
-    #[serde(rename = "Open")]
-    open: f64,
-    #[serde(rename = "High")]
-    high: f64,
-    #[serde(rename = "Low")]
-    low: f64,
-    #[serde(rename = "Close")]
-    close: f64,
+struct YahooResult {
+    chart: YahooChart,
 }
 
-impl From<YahooDataFrame> for DataFrame {
-    fn from(value: YahooDataFrame) -> Self {
-        DataFrame {
-            date: value.date,
-            open: value.open,
-            high: value.high,
-            low: value.low,
-            close: value.close,
-        }
-    }
+#[derive(Debug, Deserialize)]
+struct YahooChart {
+    result: Vec<YahooChartResult>,
 }
 
-fn deserialize_date<'de, D>(deserializer: D) -> Result<Date, D::Error>
+#[derive(Debug, Deserialize)]
+struct YahooChartResult {
+    #[serde(deserialize_with = "deserialize_vec_timestamp")]
+    timestamp: Vec<Date>,
+    indicators: YahooChartIndicators,
+}
+
+#[derive(Debug, Deserialize)]
+struct YahooChartIndicators {
+    quote: Vec<YahooChartQuote>,
+}
+
+#[derive(Debug, Deserialize)]
+struct YahooChartQuote {
+    low: Vec<Option<f64>>,
+    open: Vec<Option<f64>>,
+    close: Vec<Option<f64>>,
+    high: Vec<Option<f64>>,
+    volume: Vec<Option<f64>>,
+}
+
+fn deserialize_vec_timestamp<'de, D>(deserializer: D) -> Result<Vec<Date>, D::Error>
 where
     D: serde::Deserializer<'de>,
 {
-    let buf = String::deserialize(deserializer)?;
-    let result =
-        chrono::NaiveDate::parse_from_str(&buf, "%Y-%m-%d").map_err(serde::de::Error::custom)?;
-    Ok(result)
+    let values: Vec<i64> = Vec::deserialize(deserializer)?;
+    let mut dates = Vec::with_capacity(values.len());
+    for value in values {
+        let date = chrono::DateTime::from_timestamp(value, 0)
+            .ok_or_else(|| {
+                serde::de::Error::custom(format!("unable to create date from timestamp {}", value))
+            })?
+            .naive_local()
+            .date();
+        dates.push(date);
+    }
+    Ok(dates)
 }
 
 pub struct YahooRequester {
@@ -70,59 +80,75 @@ impl YahooRequester {
         })
     }
 
-    fn request_crumb(&self, ticker: &String) -> Result<String, Error> {
-        let mut body = String::new();
-        self.reqwest_client
-            .get(format!("https://finance.yahoo.com/quote/{ticker}/history"))
+    fn request_data(&self, ticker: &str, begin: Date, end: Date) -> Result<Vec<DataFrame>, Error> {
+        let url = format!("https://query1.finance.yahoo.com/v8/finance/chart/{}?period1={}&period2={}&interval=1d", ticker, begin.and_hms_opt(0, 0, 0).unwrap().and_utc().timestamp(), end.and_hms_opt(0, 0, 0).unwrap().and_utc().timestamp());
+        debug!("request data from url {}", url);
+        let output = self
+            .reqwest_client
+            .get(url)
             .send()
             .map_err(|error| {
-                Error::new_historical(
-                    format!(
-                        "request failed to get history to have crumb ticker:{ticker} error:{error}"
-                    )
-                )
+                Error::new_historical(format!(
+                    "failed to request historic ticker:{ticker} error:{error}"
+                ))
             })?
-            .read_to_string(&mut body)
+            .text()
             .map_err(|error| {
-                Error::new_historical(
-                    format!(
-                        "request failed to get body of history to have crumb ticker:{ticker} error:{error}"),
-                )
+                Error::new_historical(format!(
+                    "failed to read body from request historic ticker:{ticker} error:{error}"
+                ))
             })?;
-        let re = Regex::new(r#""CrumbStore":\{"crumb":"(.+?)"\}"#).unwrap();
-        let mut crumb: String = "".to_string();
-        for cap in re.captures_iter(&body) {
-            crumb = cap[0].to_string();
-        }
-        Ok(crumb.chars().skip(23).take(11).collect())
-    }
-
-    fn request_data(
-        &self,
-        ticker: &str,
-        crumb: &str,
-        begin: Date,
-        end: Date,
-    ) -> Result<Vec<DataFrame>, Error> {
-        let output = self.reqwest_client.get(format!("https://query1.finance.yahoo.com/v7/finance/download/{}?period1={}&period2={}&interval=1d&events=history&crumb={}", ticker, begin.and_hms_opt(0, 0, 0).unwrap().and_utc().timestamp(), end.and_hms_opt(0, 0, 0).unwrap().and_utc().timestamp(), crumb))
-        .send()
-        .map_err(|error| {
-            Error::new_historical(format!("failed to request historic ticker:{ticker} error:{error}"))
-        })?
-        .text()
-        .map_err(|error| {
-            Error::new_historical(format!(
-                "failed to read body from request historic ticker:{ticker} error:{error}"))
-        })?;
-        let mut csv_reader = csv::Reader::from_reader(output.as_bytes());
+        debug!("request result: {}", output);
+        let request_result: YahooResult = serde_json::from_reader(output.as_bytes())?;
         let mut data_frames: Vec<DataFrame> = Vec::new();
-        for result in csv_reader.deserialize::<YahooDataFrame>() {
-            match result {
-                Ok(record) => data_frames.push(record.into()),
-                Err(error) => {
-                    warn!("invalid csv format ticker:{ticker} error:{error} output:{output}");
+        for (instrument_position, result) in request_result.chart.result.iter().enumerate() {
+            let quotes = result
+                .indicators
+                .quote
+                .get(instrument_position)
+                .ok_or_else(|| {
+                    Error::new_historical(format!(
+                        "unable to get quote at instrument_position:{}",
+                        instrument_position
+                    ))
+                })?;
+            for (date_position, date) in result.timestamp.iter().enumerate() {
+                let open = quotes.open.get(date_position).ok_or_else(|| {
+                    Error::new_historical(format!(
+                        "unable to get open at instrument_position:{} date_position:{}",
+                        instrument_position, date_position
+                    ))
+                })?;
+                let close = quotes.close.get(date_position).ok_or_else(|| {
+                    Error::new_historical(format!(
+                        "unable to get close at instrument_position:{} date_position:{}",
+                        instrument_position, date_position
+                    ))
+                })?;
+                let high = quotes.high.get(date_position).ok_or_else(|| {
+                    Error::new_historical(format!(
+                        "unable to get high at instrument_position:{} date_position:{}",
+                        instrument_position, date_position
+                    ))
+                })?;
+                let low = quotes.low.get(date_position).ok_or_else(|| {
+                    Error::new_historical(format!(
+                        "unable to get low at instrument_position:{} date_position:{}",
+                        instrument_position, date_position
+                    ))
+                })?;
+                if open.is_some() && close.is_some() && high.is_some() && low.is_some() {
+                    data_frames.push(DataFrame::new(
+                        *date,
+                        open.unwrap(),
+                        close.unwrap(),
+                        high.unwrap(),
+                        low.unwrap(),
+                    ));
+                } else {
+                    info!("value not available at {}", date);
                 }
-            };
+            }
         }
         Ok(data_frames)
     }
@@ -148,10 +174,8 @@ impl Requester for YahooRequester {
         let ticker_yahoo = instrument.ticker_yahoo.as_ref().ok_or_else(|| {
             Error::new_historical(format!("missing yahoo ticker on {}", instrument.name))
         })?;
-        debug!("try to request crumb for {}", instrument.name);
-        let crumb = self.request_crumb(ticker_yahoo)?;
-        debug!("request crumb {} for {} done", crumb, instrument.name);
-        let result = self.request_data(ticker_yahoo, &crumb, begin, end)?;
+        debug!("request historic data for {}", instrument.name);
+        let result = self.request_data(ticker_yahoo, begin, end)?;
         let result_begin;
         let result_end;
         if result.is_empty() {
