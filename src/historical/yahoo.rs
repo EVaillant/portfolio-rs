@@ -1,8 +1,9 @@
 use super::{DataFrame, Requester};
-use crate::alias::Date;
+use crate::alias::{Date, DateTime};
 use crate::error::Error;
 use crate::marketdata::Instrument;
 
+use chrono::Timelike;
 use log::{debug, info};
 use reqwest::blocking::Client;
 use reqwest::header::{HeaderMap, HeaderValue};
@@ -21,7 +22,7 @@ struct YahooChart {
 #[derive(Debug, Deserialize)]
 struct YahooChartResult {
     #[serde(deserialize_with = "deserialize_vec_timestamp")]
-    timestamp: Vec<Date>,
+    timestamp: Vec<DateTime>,
     indicators: YahooChartIndicators,
 }
 
@@ -39,7 +40,7 @@ struct YahooChartQuote {
     volume: Vec<Option<f64>>,
 }
 
-fn deserialize_vec_timestamp<'de, D>(deserializer: D) -> Result<Vec<Date>, D::Error>
+fn deserialize_vec_timestamp<'de, D>(deserializer: D) -> Result<Vec<DateTime>, D::Error>
 where
     D: serde::Deserializer<'de>,
 {
@@ -50,8 +51,7 @@ where
             .ok_or_else(|| {
                 serde::de::Error::custom(format!("unable to create date from timestamp {}", value))
             })?
-            .naive_local()
-            .date();
+            .naive_local();
         dates.push(date);
     }
     Ok(dates)
@@ -113,6 +113,10 @@ impl YahooRequester {
                     ))
                 })?;
             for (date_position, date) in result.timestamp.iter().enumerate() {
+                if date.hour() != 7 || date.minute() != 0 || date.second() != 0 {
+                    debug!("skip {} because not a real close", date);
+                    continue;
+                }
                 let open = quotes.open.get(date_position).ok_or_else(|| {
                     Error::new_historical(format!(
                         "unable to get open at instrument_position:{} date_position:{}",
@@ -139,7 +143,7 @@ impl YahooRequester {
                 })?;
                 if open.is_some() && close.is_some() && high.is_some() && low.is_some() {
                     data_frames.push(DataFrame::new(
-                        *date,
+                        date.date(),
                         open.unwrap(),
                         close.unwrap(),
                         high.unwrap(),
