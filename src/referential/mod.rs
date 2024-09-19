@@ -37,7 +37,7 @@ pub struct Referential {
 }
 
 impl Referential {
-    pub fn new<P: Into<String>>(path: P) -> Self {
+    pub fn new(path: &str) -> Self {
         Self {
             marketdata_dir: path.into(),
             cache: Default::default(),

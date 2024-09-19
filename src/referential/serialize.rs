@@ -250,13 +250,13 @@ impl Deserialize for Trade {
         let way = deserializer.read("way")?;
         let quantity = deserializer.read("quantity")?;
         let price = deserializer.read("price")?;
-        let tax = deserializer.read("tax")?;
+        let fees = deserializer.read("fees")?;
         Ok(Trade {
             date,
             way,
             quantity,
             price,
-            tax,
+            fees,
         })
     }
 }

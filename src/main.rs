@@ -3,6 +3,7 @@ use clap::{Parser, ValueEnum};
 use env_logger::Builder;
 use log::info;
 use log::LevelFilter;
+use portfolio::Portfolio;
 use std::io::Write;
 
 mod alias;
@@ -17,7 +18,7 @@ mod referential;
 
 use alias::Date;
 use historical::{HistoricalData, NullRequester, Requester, YahooRequester};
-use output::{CsvOutput, OdsOutput, Output};
+use output::{CsvOutput, OdsOutput, Output, PortfolioPerformanceOutput};
 use persistence::SQLitePersistance;
 use pricer::PortfolioIndicators;
 use referential::Referential;
@@ -43,6 +44,7 @@ impl std::fmt::Display for SpotSource {
 enum OutputType {
     Csv,
     Ods,
+    PortfolioPerformance,
 }
 
 impl std::fmt::Display for OutputType {
@@ -111,6 +113,41 @@ fn make_requester(source: SpotSource) -> Result<Box<dyn Requester>, Error> {
     Ok(value)
 }
 
+fn make_portfolio_indicators(
+    args: &Args,
+    portfolio: &Portfolio,
+) -> Result<PortfolioIndicators, Error> {
+    //
+    // get pricing date
+    let pricing_end_date = if args.pricing_date == "now" {
+        chrono::Utc::now().date_naive()
+    } else {
+        chrono::NaiveDate::parse_from_str(&args.pricing_date, "%Y-%m-%d")
+            .expect("invalid pricing date format")
+    };
+
+    //
+    // persistence
+    let persistence = SQLitePersistance::new(&args.cache_file)?;
+
+    //
+    // historical data
+    let requester = make_requester(args.spot_source)?;
+    let mut provider = HistoricalData::new(requester, &persistence);
+
+    //
+    // compute main portfolio
+    let pricing_begin_date = portfolio.get_trade_date()?;
+    let portfolio_indicators = PortfolioIndicators::from_portfolio(
+        portfolio,
+        pricing_begin_date,
+        pricing_end_date,
+        &mut provider,
+    )?;
+    info!("compute portfolio done");
+    Ok(portfolio_indicators)
+}
+
 fn main() -> Result<(), Error> {
     //
     // cli arg
@@ -133,57 +170,39 @@ fn main() -> Result<(), Error> {
         .init();
 
     //
-    // get pricing date
-    let pricing_end_date = if args.pricing_date == "now" {
-        chrono::Utc::now().date_naive()
-    } else {
-        chrono::NaiveDate::parse_from_str(&args.pricing_date, "%Y-%m-%d")
-            .expect("invalid pricing date format")
-    };
-
-    //
     // Load portfolio
-    let mut referential = Referential::new(args.marketdata_dir);
+    let mut referential = Referential::new(&args.marketdata_dir);
     let portfolio = referential.load_portfolio(&args.portfolio)?;
     info!("loading portfolio {} done", portfolio.name);
 
     //
-    // persistence
-    let persistence = SQLitePersistance::new(&args.cache_file)?;
-
-    //
-    // historical data
-    let requester = make_requester(args.spot_source)?;
-    let mut provider = HistoricalData::new(requester, &persistence);
-
-    //
-    // compute main portfolio
-    let pricing_begin_date = portfolio.get_trade_date()?;
-    let portfolio_indicators = PortfolioIndicators::from_portfolio(
-        &portfolio,
-        pricing_begin_date,
-        pricing_end_date,
-        &mut provider,
-    )?;
-    info!("compute portfolio done");
-
-    //
     // write output
-    let mut output: Box<dyn Output> = match args.output_type {
-        OutputType::Csv => Box::new(CsvOutput::new(
-            &args.output_dir,
-            &portfolio,
-            &portfolio_indicators,
-            &args.indicators_filter,
-        )),
-        OutputType::Ods => Box::new(OdsOutput::new(
-            &args.output_dir,
-            &portfolio,
-            &portfolio_indicators,
-            &args.indicators_filter,
-        )?),
+    match args.output_type {
+        OutputType::Csv => {
+            let portfolio_indicators = make_portfolio_indicators(&args, &portfolio)?;
+            let mut output = CsvOutput::new(
+                &args.output_dir,
+                &portfolio,
+                &portfolio_indicators,
+                &args.indicators_filter,
+            );
+            output.write()?;
+        }
+        OutputType::Ods => {
+            let portfolio_indicators = make_portfolio_indicators(&args, &portfolio)?;
+            let mut output = OdsOutput::new(
+                &args.output_dir,
+                &portfolio,
+                &portfolio_indicators,
+                &args.indicators_filter,
+            )?;
+            output.write()?;
+        }
+        OutputType::PortfolioPerformance => {
+            let mut output = PortfolioPerformanceOutput::new(&args.output_dir, &portfolio);
+            output.write()?;
+        }
     };
-    output.write_indicators()?;
     info!("write output done");
 
     Ok(())

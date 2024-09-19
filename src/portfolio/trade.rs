@@ -7,5 +7,5 @@ pub struct Trade {
     pub way: Way,
     pub quantity: f64,
     pub price: f64,
-    pub tax: f64,
+    pub fees: f64,
 }

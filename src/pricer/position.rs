@@ -20,7 +20,7 @@ pub struct PositionIndicator {
     pub nominal: f64,
     pub cashflow: f64,
     pub dividends: f64,
-    pub tax: f64,
+    pub fees: f64,
     pub pnl_currency: f64,
     pub pnl_percent: f64,
     pub twr: f64,
@@ -42,7 +42,7 @@ impl PositionIndicator {
             position.instrument.name, date, spot.close
         );
 
-        let (quantity, quantity_buy, quantity_sell, unit_price, tax) =
+        let (quantity, quantity_buy, quantity_sell, unit_price, fees) =
             Self::compute_quantity_(position, date);
 
         let is_close = quantity.abs() < 1e-7;
@@ -84,7 +84,7 @@ impl PositionIndicator {
             nominal,
             cashflow,
             dividends,
-            tax,
+            fees,
             pnl_currency,
             pnl_percent,
             twr,
@@ -101,7 +101,7 @@ impl PositionIndicator {
             .filter(|trade| trade.date.date() <= date)
             .fold(
                 (0.0, 0.0, 0.0, 0.0, 0.0),
-                |(mut quantity, mut quantity_buy, mut quantity_sell, mut unit_price, mut tax),
+                |(mut quantity, mut quantity_buy, mut quantity_sell, mut unit_price, mut fees),
                  trade| {
                     match trade.way {
                         Way::Sell => {
@@ -114,14 +114,14 @@ impl PositionIndicator {
                         }
                         Way::Buy => {
                             unit_price =
-                                (quantity * unit_price + trade.price * trade.quantity + trade.tax)
+                                (quantity * unit_price + trade.price * trade.quantity + trade.fees)
                                     / (quantity + trade.quantity);
                             quantity += trade.quantity;
                             quantity_buy += trade.quantity;
                         }
                     };
-                    tax += trade.tax;
-                    (quantity, quantity_buy, quantity_sell, unit_price, tax)
+                    fees += trade.fees;
+                    (quantity, quantity_buy, quantity_sell, unit_price, fees)
                 },
             )
     }
@@ -165,8 +165,8 @@ impl PositionIndicator {
             .iter()
             .filter(|trade| trade.date.date() <= date)
             .map(|trade| match trade.way {
-                Way::Sell => trade.price * trade.quantity - trade.tax,
-                Way::Buy => -trade.price * trade.quantity - trade.tax,
+                Way::Sell => trade.price * trade.quantity - trade.fees,
+                Way::Buy => -trade.price * trade.quantity - trade.fees,
             })
             .sum()
     }
@@ -223,7 +223,7 @@ mod tests {
                     way: Way::Buy,
                     quantity: 14.0,
                     price: 21.5,
-                    tax: 1.55,
+                    fees: 1.55,
                 },
                 Trade {
                     date: chrono::DateTime::parse_from_rfc3339("2022-03-19T10:00:00-00:00")
@@ -232,7 +232,7 @@ mod tests {
                     way: Way::Buy,
                     quantity: 20.0,
                     price: 19.5,
-                    tax: 1.0,
+                    fees: 1.0,
                 },
                 Trade {
                     date: chrono::DateTime::parse_from_rfc3339("2022-03-21T10:00:00-00:00")
@@ -241,7 +241,7 @@ mod tests {
                     way: Way::Sell,
                     quantity: 10.0,
                     price: 20.0,
-                    tax: 1.2,
+                    fees: 1.2,
                 },
                 Trade {
                     date: chrono::DateTime::parse_from_rfc3339("2022-03-22T10:00:00-00:00")
@@ -250,7 +250,7 @@ mod tests {
                     way: Way::Sell,
                     quantity: 24.0,
                     price: 21.0,
-                    tax: 1.3,
+                    fees: 1.3,
                 },
             ],
         }
@@ -372,49 +372,49 @@ mod tests {
     fn compute_quantity() {
         let position = make_position_();
         {
-            let (quantity, quantity_buy, quantity_sell, unit_price, tax) =
+            let (quantity, quantity_buy, quantity_sell, unit_price, fees) =
                 PositionIndicator::compute_quantity_(&position, make_date_(2022, 3, 17));
             assert_float_absolute_eq!(quantity, 14.0, 1e-7);
             assert_float_absolute_eq!(quantity_buy, 14.0, 1e-7);
             assert_float_absolute_eq!(quantity_sell, 0.0, 1e-7);
             assert_float_absolute_eq!(unit_price, 21.6107142, 1e-7);
-            assert_float_absolute_eq!(tax, 1.55, 1e-7);
+            assert_float_absolute_eq!(fees, 1.55, 1e-7);
         }
         {
-            let (quantity, quantity_buy, quantity_sell, unit_price, tax) =
+            let (quantity, quantity_buy, quantity_sell, unit_price, fees) =
                 PositionIndicator::compute_quantity_(&position, make_date_(2022, 3, 19));
             assert_float_absolute_eq!(quantity, 34.0, 1e-7);
             assert_float_absolute_eq!(quantity_buy, 34.0, 1e-7);
             assert_float_absolute_eq!(quantity_sell, 0.0, 1e-7);
             assert_float_absolute_eq!(unit_price, 20.398529411764706, 1e-7);
-            assert_float_absolute_eq!(tax, 2.55, 1e-7);
+            assert_float_absolute_eq!(fees, 2.55, 1e-7);
         }
         {
-            let (quantity, quantity_buy, quantity_sell, unit_price, tax) =
+            let (quantity, quantity_buy, quantity_sell, unit_price, fees) =
                 PositionIndicator::compute_quantity_(&position, make_date_(2022, 3, 20));
             assert_float_absolute_eq!(quantity, 34.0, 1e-7);
             assert_float_absolute_eq!(quantity_buy, 34.0, 1e-7);
             assert_float_absolute_eq!(quantity_sell, 0.0, 1e-7);
             assert_float_absolute_eq!(unit_price, 20.398529411764706, 1e-7);
-            assert_float_absolute_eq!(tax, 2.55, 1e-7);
+            assert_float_absolute_eq!(fees, 2.55, 1e-7);
         }
         {
-            let (quantity, quantity_buy, quantity_sell, unit_price, tax) =
+            let (quantity, quantity_buy, quantity_sell, unit_price, fees) =
                 PositionIndicator::compute_quantity_(&position, make_date_(2022, 3, 21));
             assert_float_absolute_eq!(quantity, 24.0, 1e-7);
             assert_float_absolute_eq!(quantity_buy, 34.0, 1e-7);
             assert_float_absolute_eq!(quantity_sell, 10.0, 1e-7);
             assert_float_absolute_eq!(unit_price, 20.398529411764706, 1e-7);
-            assert_float_absolute_eq!(tax, 3.75, 1e-7);
+            assert_float_absolute_eq!(fees, 3.75, 1e-7);
         }
         {
-            let (quantity, quantity_buy, quantity_sell, unit_price, tax) =
+            let (quantity, quantity_buy, quantity_sell, unit_price, fees) =
                 PositionIndicator::compute_quantity_(&position, make_date_(2022, 3, 22));
             assert_float_absolute_eq!(quantity, 0.0, 1e-7);
             assert_float_absolute_eq!(quantity_buy, 34.0, 1e-7);
             assert_float_absolute_eq!(quantity_sell, 34.0, 1e-7);
             assert_float_absolute_eq!(unit_price, 0.0, 1e-7);
-            assert_float_absolute_eq!(tax, 5.05, 1e-7);
+            assert_float_absolute_eq!(fees, 5.05, 1e-7);
         }
     }
 

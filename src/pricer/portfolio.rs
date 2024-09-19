@@ -12,7 +12,7 @@ struct PositionAccumulator {
     pub valuation: f64,
     pub nominal: f64,
     pub dividends: f64,
-    pub tax: f64,
+    pub fees: f64,
     pub earning: f64,
     pub earning_latent: f64,
 }
@@ -35,7 +35,7 @@ impl PositionAccumulator {
             valuation: position.valuation,
             nominal: position.nominal,
             dividends: position.dividends,
-            tax: position.tax,
+            fees: position.fees,
             earning: position.earning,
             earning_latent: position.earning_latent,
         }
@@ -50,7 +50,7 @@ impl Add for PositionAccumulator {
             valuation: other.valuation + self.valuation,
             nominal: other.nominal + self.nominal,
             dividends: other.dividends + self.dividends,
-            tax: other.tax + self.tax,
+            fees: other.fees + self.fees,
             earning: other.earning + self.earning,
             earning_latent: other.earning_latent + self.earning_latent,
         }
@@ -73,8 +73,8 @@ pub struct PortfolioIndicator {
     pub open_nominal: f64,
     pub dividends: f64,
     pub open_dividends: f64,
-    pub tax: f64,
-    pub open_tax: f64,
+    pub fees: f64,
+    pub open_fees: f64,
     pub pnl_currency: f64,
     pub pnl_percent: f64,
     pub twr: f64,
@@ -177,8 +177,8 @@ impl PortfolioIndicator {
             open_nominal,
             dividends: accumulator.dividends,
             open_dividends: open_accumulator.dividends,
-            tax: accumulator.tax,
-            open_tax: open_accumulator.tax,
+            fees: accumulator.fees,
+            open_fees: open_accumulator.fees,
             pnl_currency,
             pnl_percent,
             open_pnl_currency,
@@ -211,7 +211,7 @@ mod tests {
         dividends: f64,
         earning: f64,
         earning_latent: f64,
-        tax: f64,
+        fees: f64,
     ) -> PositionIndicator {
         let date = chrono::NaiveDate::from_ymd_opt(2025, 3, 17).unwrap();
         let currency = Rc::new(Currency {
@@ -246,7 +246,7 @@ mod tests {
             nominal,
             cashflow: 0.0,
             dividends,
-            tax,
+            fees,
             pnl_currency: 0.0,
             pnl_percent: 0.0,
             twr: 0.0,
@@ -295,7 +295,7 @@ mod tests {
             assert_float_absolute_eq!(indicator.nominal, 1000.0, 1e-7);
             assert_float_absolute_eq!(indicator.cash, 810.0, 1e-7);
             assert_float_absolute_eq!(indicator.valuation, 1010.0, 1e-7);
-            assert_float_absolute_eq!(indicator.tax, 2.0, 1e-7);
+            assert_float_absolute_eq!(indicator.fees, 2.0, 1e-7);
             assert_float_absolute_eq!(indicator.dividends, 0.0, 1e-7);
             assert_float_absolute_eq!(indicator.earning, -190.0, 1e-7);
             assert_float_absolute_eq!(indicator.earning_latent, -190.0, 1e-7);
@@ -324,7 +324,7 @@ mod tests {
             assert_float_absolute_eq!(indicator.nominal, 1000.0, 1e-7);
             assert_float_absolute_eq!(indicator.cash, 410.0, 1e-7);
             assert_float_absolute_eq!(indicator.valuation, 1210.0, 1e-7);
-            assert_float_absolute_eq!(indicator.tax, 7.0, 1e-7);
+            assert_float_absolute_eq!(indicator.fees, 7.0, 1e-7);
             assert_float_absolute_eq!(indicator.dividends, 0.0, 1e-7);
             assert_float_absolute_eq!(indicator.earning, -590.0, 1e-7);
             assert_float_absolute_eq!(indicator.earning_latent, -590.0, 1e-7);

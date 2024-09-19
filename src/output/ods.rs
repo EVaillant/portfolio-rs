@@ -125,8 +125,8 @@ impl<'a> OdsOutput<'a> {
                 .add("Valuation", |position: &&PositionIndicator| {
                     currency!(&position.instrument.currency.name, position.valuation)
                 })
-                .add("Tax", |position: &&PositionIndicator| {
-                    currency!(&position.instrument.currency.name, position.tax)
+                .add("Fees", |position: &&PositionIndicator| {
+                    currency!(&position.instrument.currency.name, position.fees)
                 })
                 .add("Nominal", |position: &&PositionIndicator| {
                     currency!(&position.instrument.currency.name, position.nominal)
@@ -156,7 +156,7 @@ impl<'a> OdsOutput<'a> {
                     currency!(&self.portfolio.currency.name, portfolio.open_valuation)
                 })
                 .add("", |portfolio: &&PortfolioIndicator| {
-                    currency!(&self.portfolio.currency.name, portfolio.open_tax)
+                    currency!(&self.portfolio.currency.name, portfolio.open_fees)
                 })
                 .add("", |portfolio: &&PortfolioIndicator| {
                     currency!(&self.portfolio.currency.name, portfolio.open_nominal)
@@ -260,7 +260,7 @@ impl<'a> OdsOutput<'a> {
                 |(instrument, trade): &(&Rc<Instrument>, &Trade)| {
                     currency!(
                         &instrument.currency.name,
-                        trade.price + trade.tax / trade.quantity
+                        trade.price + trade.fees / trade.quantity
                     )
                 },
             )
@@ -270,8 +270,8 @@ impl<'a> OdsOutput<'a> {
                     currency!(&instrument.currency.name, trade.price)
                 },
             )
-            .add("Tax", |(instrument, trade): &(&Rc<Instrument>, &Trade)| {
-                currency!(&instrument.currency.name, trade.tax)
+            .add("Fees", |(instrument, trade): &(&Rc<Instrument>, &Trade)| {
+                currency!(&instrument.currency.name, trade.fees)
             });
 
         let mut sheet = Sheet::new("Trades");
@@ -323,8 +323,8 @@ impl<'a> OdsOutput<'a> {
             .add("Dividends", |portfolio_indicator: &&PortfolioIndicator| {
                 currency!(&self.portfolio.currency.name, portfolio_indicator.dividends)
             })
-            .add("Tax", |portfolio_indicator: &&PortfolioIndicator| {
-                currency!(&self.portfolio.currency.name, portfolio_indicator.tax)
+            .add("Fees", |portfolio_indicator: &&PortfolioIndicator| {
+                currency!(&self.portfolio.currency.name, portfolio_indicator.fees)
             })
             .add("P&L", |portfolio_indicator: &&PortfolioIndicator| {
                 currency!(
@@ -414,10 +414,10 @@ impl<'a> OdsOutput<'a> {
                     position_indicator.dividends
                 )
             })
-            .add("Tax", |position_indicator: &&&PositionIndicator| {
+            .add("Fees", |position_indicator: &&&PositionIndicator| {
                 currency!(
                     &position_indicator.instrument.currency.name,
-                    position_indicator.tax
+                    position_indicator.fees
                 )
             })
             .add("P&L", |position_indicator: &&&PositionIndicator| {
@@ -729,7 +729,7 @@ impl<'a> OdsOutput<'a> {
 }
 
 impl<'a> Output for OdsOutput<'a> {
-    fn write_indicators(&mut self) -> Result<(), Error> {
+    fn write(&mut self) -> Result<(), Error> {
         debug!("create style");
         self.create_style()?;
 

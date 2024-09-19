@@ -129,7 +129,7 @@ impl<'a> CsvOutput<'a> {
     fn write_position_indicators(&self, filename: &str) -> Result<(), Error> {
         let mut output_stream = File::create(filename)?;
         output_stream.write_all(
-            "Date;Valuation;Nominal;Incoming Transfert;Outcoming Transfert;Cash;Dividends;Tax;P&L;P&L(%);TWR;Earning;Earning Latent\n".as_bytes(),
+            "Date;Valuation;Nominal;Incoming Transfert;Outcoming Transfert;Cash;Dividends;Fees;P&L;P&L(%);TWR;Earning;Earning Latent\n".as_bytes(),
         )?;
         let mut have_line = false;
         for portfolio_indicator in self.indicators.portfolios.iter() {
@@ -150,7 +150,7 @@ impl<'a> CsvOutput<'a> {
                     portfolio_indicator.outcoming_transfer,
                     portfolio_indicator.cash,
                     portfolio_indicator.dividends,
-                    portfolio_indicator.tax,
+                    portfolio_indicator.fees,
                     portfolio_indicator.pnl_currency,
                     portfolio_indicator.pnl_percent,
                     portfolio_indicator.twr,
@@ -175,7 +175,7 @@ impl<'a> CsvOutput<'a> {
     ) -> Result<(), Error> {
         let mut output_stream = File::create(filename)?;
         output_stream.write_all(
-          "Date;Instrument;Spot(Close);Quantity;Quantity Buy;Quantity Sell;Unit Price;Valuation;Nominal;Cashflow;Dividends;Tax;P&L;P&L(%);TWR;Earning;Earning Latent;Is Close\n".as_bytes(),
+          "Date;Instrument;Spot(Close);Quantity;Quantity Buy;Quantity Sell;Unit Price;Valuation;Nominal;Cashflow;Dividends;Fees;P&L;P&L(%);TWR;Earning;Earning Latent;Is Close\n".as_bytes(),
         )?;
         let mut have_line = false;
         for position_indicator in indicators
@@ -198,7 +198,7 @@ impl<'a> CsvOutput<'a> {
                     position_indicator.nominal,
                     position_indicator.cashflow,
                     position_indicator.dividends,
-                    position_indicator.tax,
+                    position_indicator.fees,
                     position_indicator.pnl_currency,
                     position_indicator.pnl_percent,
                     position_indicator.twr,
@@ -222,7 +222,7 @@ impl<'a> CsvOutput<'a> {
 }
 
 impl<'a> Output for CsvOutput<'a> {
-    fn write_indicators(&mut self) -> Result<(), Error> {
+    fn write(&mut self) -> Result<(), Error> {
         let filename = format!("{}/indicators_{}.csv", self.output_dir, self.portfolio.name);
         self.write_position_indicators(&filename)?;
 
