@@ -1,5 +1,5 @@
 use super::{DataFrame, Requester};
-use crate::alias::{Date, DateTime};
+use crate::alias::Date;
 use crate::error::Error;
 use crate::marketdata::Instrument;
 
