@@ -108,7 +108,7 @@ impl YahooRequester {
                         ))
                     })?
                     .naive_local();
-                if date.hour() != 7 || date.minute() != 0 || date.second() != 0 {
+                if date.hour() > 8 || date.minute() != 0 || date.second() != 0 {
                     debug!("skip {} because not a real close", date);
                     continue;
                 }
