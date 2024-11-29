@@ -45,7 +45,7 @@ pub struct DeserializerValue<'a, R: Resolver> {
     resolver: &'a mut R,
 }
 
-impl<'a, R: Resolver> Deserializer for DeserializerValue<'a, R> {
+impl<R: Resolver> Deserializer for DeserializerValue<'_, R> {
     fn read<T>(&mut self, name: &str) -> Result<T, Error>
     where
         T: Deserialize,

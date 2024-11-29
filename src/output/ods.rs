@@ -27,7 +27,7 @@ pub struct OdsOutput<'a> {
     filter_indicators: &'a Option<Date>,
 }
 
-impl<'a> TableBuilderStyleResolver for OdsOutput<'a> {
+impl TableBuilderStyleResolver for OdsOutput<'_> {
     fn get_style(&self, _header: &str, value: &Value) -> Option<CellStyleRef> {
         match value {
             Value::Currency(_, currency_name) => self.get_currency_style(currency_name),
@@ -728,7 +728,7 @@ impl<'a> OdsOutput<'a> {
     }
 }
 
-impl<'a> Output for OdsOutput<'a> {
+impl Output for OdsOutput<'_> {
     fn write(&mut self) -> Result<(), Error> {
         debug!("create style");
         self.create_style()?;

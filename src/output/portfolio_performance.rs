@@ -94,7 +94,7 @@ impl<'a> PortfolioPerformanceOutput<'a> {
     }
 }
 
-impl<'a> Output for PortfolioPerformanceOutput<'a> {
+impl Output for PortfolioPerformanceOutput<'_> {
     fn write(&mut self) -> Result<(), Error> {
         debug!("write instrument");
         self.write_instrument()?;

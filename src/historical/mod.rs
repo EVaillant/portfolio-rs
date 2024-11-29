@@ -139,7 +139,7 @@ where
     }
 }
 
-impl<'a, P> Provider for HistoricalData<'a, P>
+impl<P> Provider for HistoricalData<'_, P>
 where
     P: Persistance,
 {

@@ -221,7 +221,7 @@ impl<'a> CsvOutput<'a> {
     }
 }
 
-impl<'a> Output for CsvOutput<'a> {
+impl Output for CsvOutput<'_> {
     fn write(&mut self) -> Result<(), Error> {
         let filename = format!("{}/indicators_{}.csv", self.output_dir, self.portfolio.name);
         self.write_position_indicators(&filename)?;
