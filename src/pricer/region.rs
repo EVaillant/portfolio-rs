@@ -44,7 +44,7 @@ impl RegionIndicator {
                                 .instrument
                                 .region
                                 .as_ref()
-                                .map_or(false, |item| *item == *region)
+                                .is_some_and(|item| *item == *region)
                     })
                     .for_each(|position| {
                         let value = valuation_by_instrument
