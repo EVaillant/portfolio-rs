@@ -51,3 +51,13 @@ impl From<serde_json::Error> for Error {
         Error::SerdeJson(error)
     }
 }
+
+impl From<yahoo_finance_api::Error> for Error {
+    fn from(error: yahoo_finance_api::Error) -> Self {
+        match error {
+            yahoo_finance_api::Error::Initialize(msg) => Error::Historical(msg),
+            yahoo_finance_api::Error::Json(msg) => Error::Historical(msg),
+            yahoo_finance_api::Error::Request(msg) => Error::Historical(msg),
+        }
+    }
+}

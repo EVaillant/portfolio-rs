@@ -108,7 +108,7 @@ fn parse_indicators_filter(arg: &str) -> Result<Date, clap::Error> {
 fn make_requester(source: SpotSource) -> Result<Box<dyn Requester>, Error> {
     let value: Box<dyn Requester> = match source {
         SpotSource::Null => Box::new(NullRequester),
-        SpotSource::Yahoo => Box::new(YahooRequester::new()?),
+        SpotSource::Yahoo => Box::new(YahooRequester),
     };
     Ok(value)
 }
