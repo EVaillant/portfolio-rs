@@ -8,6 +8,7 @@ pub enum Error {
     Ods(spreadsheet_ods::OdsError),
     Rusqlite(rusqlite::Error),
     SerdeJson(serde_json::Error),
+    YahooFinance(yahoo_finance_api::Error),
 }
 
 impl Error {
@@ -54,10 +55,6 @@ impl From<serde_json::Error> for Error {
 
 impl From<yahoo_finance_api::Error> for Error {
     fn from(error: yahoo_finance_api::Error) -> Self {
-        match error {
-            yahoo_finance_api::Error::Initialize(msg) => Error::Historical(msg),
-            yahoo_finance_api::Error::Json(msg) => Error::Historical(msg),
-            yahoo_finance_api::Error::Request(msg) => Error::Historical(msg),
-        }
+        Error::YahooFinance(error)
     }
 }
