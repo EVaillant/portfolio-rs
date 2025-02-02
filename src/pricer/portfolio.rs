@@ -75,6 +75,7 @@ pub struct PortfolioIndicator {
     pub open_dividends: f64,
     pub fees: f64,
     pub open_fees: f64,
+    pub fees_percent: f64,
     pub pnl_currency: f64,
     pub pnl_percent: f64,
     pub twr: f64,
@@ -134,6 +135,11 @@ impl PortfolioIndicator {
         let cash = outcoming_transfer + incoming_transfer + accumulator.earning;
         let nominal = cash + accumulator.nominal;
         let valuation = cash + accumulator.valuation;
+        let fees_percent = if valuation + accumulator.fees == 0.0 {
+            0.0
+        } else {
+            accumulator.fees / (accumulator.fees + valuation)
+        };
         let open_nominal = open_accumulator.nominal;
         let open_valuation = open_accumulator.valuation;
         let (pnl_currency, pnl_percent) = primitive::pnl(valuation, nominal);
@@ -179,6 +185,7 @@ impl PortfolioIndicator {
             open_dividends: open_accumulator.dividends,
             fees: accumulator.fees,
             open_fees: open_accumulator.fees,
+            fees_percent,
             pnl_currency,
             pnl_percent,
             open_pnl_currency,

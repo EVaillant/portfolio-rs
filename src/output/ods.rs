@@ -193,6 +193,12 @@ impl<'a> OdsOutput<'a> {
                 .add("TWR", |portfolio: &&PortfolioIndicator| {
                     percent!(portfolio.twr)
                 })
+                .add("Fees", |portfolio: &&PortfolioIndicator| {
+                    currency!(&self.portfolio.currency.name, portfolio.fees)
+                })
+                .add("Fees (%)", |portfolio: &&PortfolioIndicator| {
+                    percent!(portfolio.fees_percent)
+                })
                 .add("Incoming Transfert", |portfolio: &&PortfolioIndicator| {
                     currency!(&self.portfolio.currency.name, portfolio.incoming_transfer)
                 })
@@ -201,7 +207,7 @@ impl<'a> OdsOutput<'a> {
                 })
                 .write_reversed(&mut sheet, self, row, 1, std::iter::once(portfolio));
 
-            row += 8;
+            row += 10;
             let region_indicators = RegionIndicator::from_portfolio(portfolio);
             row = self.write_distribution_by_region(
                 &mut sheet,
