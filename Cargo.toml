@@ -1,7 +1,7 @@
 [package]
 name = "portfolio-rs"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 yahoo-finance-api = { git = "https://github.com/EVaillant/yahoo-finance-rs" }
@@ -12,7 +12,7 @@ clap = { version = "4.5", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0"
 reqwest = {version = "0.12", features = ["blocking", "cookies"] }
-rusqlite = "0.33"
+rusqlite = "0.35"
 spreadsheet-ods = "0.24"
 assert_float_eq = "1.1"
 
