@@ -135,7 +135,7 @@ impl<'a> CsvOutput<'a> {
         for portfolio_indicator in self.indicators.portfolios.iter() {
             if self
                 .filter_indicators
-                .map_or(false, |date| date > portfolio_indicator.date)
+                .is_some_and(|date| date > portfolio_indicator.date)
             {
                 continue;
             }
@@ -181,7 +181,7 @@ impl<'a> CsvOutput<'a> {
         for position_indicator in indicators
             .positions
             .into_iter()
-            .filter(|item| self.filter_indicators.map_or(true, |date| date < item.date))
+            .filter(|item| self.filter_indicators.is_some_and(|date| date < item.date))
         {
             have_line = true;
             output_stream.write_all(

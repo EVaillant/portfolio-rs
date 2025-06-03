@@ -1,5 +1,5 @@
-use super::ods_helper::{TableBuilder, TableBuilderStyleResolver};
 use super::Output;
+use super::ods_helper::{TableBuilder, TableBuilderStyleResolver};
 use crate::alias::Date;
 use crate::error::Error;
 use crate::marketdata::Instrument;
@@ -12,8 +12,8 @@ use chrono::Datelike;
 use log::debug;
 use spreadsheet_ods::format::{FormatNumberStyle, ValueFormatTrait};
 use spreadsheet_ods::{
-    currency, percent, CellStyleRef, Sheet, Value, ValueFormatCurrency, ValueFormatDateTime,
-    ValueFormatRef, WorkBook,
+    CellStyleRef, Sheet, Value, ValueFormatCurrency, ValueFormatDateTime, ValueFormatRef, WorkBook,
+    currency, percent,
 };
 
 use std::collections::BTreeMap;
@@ -243,7 +243,7 @@ impl<'a> OdsOutput<'a> {
                         && (trade.date.date() >= self.indicators.begin)
                         && self
                             .filter_indicators
-                            .map_or(true, |date| date < trade.date.date())
+                            .is_none_or(|date| date < trade.date.date())
                 })
                 .map(|trade| (&position.instrument, trade))
         });
@@ -292,7 +292,7 @@ impl<'a> OdsOutput<'a> {
             .indicators
             .portfolios
             .iter()
-            .filter(|item| self.filter_indicators.map_or(true, |date| date < item.date));
+            .take_while(|item| self.filter_indicators.is_none_or(|date| date < item.date));
 
         let mut table = TableBuilder::new();
         table
@@ -371,10 +371,15 @@ impl<'a> OdsOutput<'a> {
         &mut self,
         indicators: PositionIndicators,
     ) -> Result<(), Error> {
-        let inputs = indicators
-            .positions
-            .iter()
-            .filter(|item| self.filter_indicators.map_or(true, |date| date < item.date));
+        let mut is_close = false;
+        let inputs = indicators.positions.iter().take_while(|item| {
+            if !is_close {
+                is_close = item.is_close;
+                self.filter_indicators.is_none_or(|date| date < item.date)
+            } else {
+                !is_close
+            }
+        });
 
         let mut table = TableBuilder::new();
         table
