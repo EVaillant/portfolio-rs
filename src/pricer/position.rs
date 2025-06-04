@@ -3,6 +3,7 @@ use crate::alias::Date;
 use crate::historical::DataFrame;
 use crate::marketdata::Instrument;
 use crate::portfolio::{Position, Way};
+use crate::pricer::PortfolioIndicator;
 use std::rc::Rc;
 
 use log::debug;
@@ -169,6 +170,60 @@ impl PositionIndicator {
                 Way::Buy => -trade.price * trade.quantity - trade.fees,
             })
             .sum()
+    }
+}
+
+pub struct ClosePositionIndicator {
+    pub open: Date,
+    pub close: Date,
+    pub instrument: Rc<Instrument>,
+    pub position_index: usize,
+    pub pnl_currency: f64,
+    pub fees: f64,
+    pub dividends: f64,
+    pub twr: f64,
+}
+
+impl ClosePositionIndicator {
+    pub fn from_positions(positions: &[&PositionIndicator]) -> Self {
+        let open_position = positions.first().unwrap();
+        let close_position = positions.iter().find(|item| item.is_close).unwrap();
+
+        Self {
+            open: open_position.date,
+            close: close_position.date,
+            instrument: open_position.instrument.clone(),
+            position_index: open_position.position_index,
+            pnl_currency: close_position.earning,
+            fees: close_position.fees,
+            dividends: close_position.dividends,
+            twr: close_position.twr,
+        }
+    }
+
+    pub fn from_portfolios(portfolios: &[PortfolioIndicator]) -> Vec<ClosePositionIndicator> {
+        if let Some(portfolio) = portfolios.last() {
+            portfolio
+                .positions
+                .iter()
+                .filter(|position| position.is_close)
+                .map(|position| position.position_index)
+                .map(|position_index| {
+                    let positions = portfolios
+                        .iter()
+                        .flat_map(|item| {
+                            item.positions
+                                .iter()
+                                .filter(|position| position.position_index == position_index)
+                                .collect::<Vec<_>>()
+                        })
+                        .collect::<Vec<_>>();
+                    ClosePositionIndicator::from_positions(&positions)
+                })
+                .collect::<Vec<_>>()
+        } else {
+            Default::default()
+        }
     }
 }
 

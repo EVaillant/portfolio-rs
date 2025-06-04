@@ -5,8 +5,9 @@ use crate::error::Error;
 use crate::marketdata::Instrument;
 use crate::portfolio::{Portfolio, Trade};
 use crate::pricer::{
-    HeatMap, HeatMapPeriod, InstrumentIndicator, PortfolioIndicator, PortfolioIndicators,
-    PositionIndicator, PositionIndicators, RegionIndicator, RegionIndicatorInstrument,
+    ClosePositionIndicator, HeatMap, HeatMapPeriod, InstrumentIndicator, PortfolioIndicator,
+    PortfolioIndicators, PositionIndicator, PositionIndicators, RegionIndicator,
+    RegionIndicatorInstrument,
 };
 use chrono::Datelike;
 use log::debug;
@@ -95,7 +96,7 @@ impl<'a> OdsOutput<'a> {
         Ok(())
     }
 
-    fn write_summary(&mut self) -> Result<(), Error> {
+    fn write_summary(&mut self) {
         let mut sheet = Sheet::new("Summary");
 
         if let Some(portfolio) = self.indicators.portfolios.last() {
@@ -174,8 +175,8 @@ impl<'a> OdsOutput<'a> {
                     percent!(portfolio.open_pnl_percent)
                 })
                 .write_line(&mut sheet, self, row + 1, 6, &portfolio);
-
             row += 3;
+
             sheet.set_value(row, 0, "Porfolio");
             TableBuilder::new()
                 .add("Cash", |portfolio: &&PortfolioIndicator| {
@@ -206,34 +207,38 @@ impl<'a> OdsOutput<'a> {
                     currency!(&self.portfolio.currency.name, portfolio.outcoming_transfer)
                 })
                 .write_reversed(&mut sheet, self, row, 1, std::iter::once(portfolio));
-
             row += 10;
+
+            let close_position_row = self.write_close_positions_(&mut sheet, row, 1, Some(5));
+            if close_position_row != 0 {
+                sheet.set_value(row, 0, "Close Position");
+                row = close_position_row + 1;
+            }
+
             let region_indicators = RegionIndicator::from_portfolio(portfolio);
             row = self.write_distribution_by_region(
                 &mut sheet,
                 "Distribution by Region",
                 &region_indicators,
                 row,
-            )?;
+            );
 
             let heat_map =
                 HeatMap::from_portfolios(self.indicators, HeatMapPeriod::Monthly, |indicator| {
                     indicator.pnl_percent
                 });
-            row =
-                self.write_heat_map_monthly_(&mut sheet, "Heat Map By Month", row + 2, heat_map)?;
+            row = self.write_heat_map_monthly_(&mut sheet, "Heat Map By Month", row + 1, heat_map);
             let heat_map =
                 HeatMap::from_portfolios(self.indicators, HeatMapPeriod::Yearly, |indicator| {
                     indicator.pnl_percent
                 });
-            self.write_heat_map_yearly_(&mut sheet, "Heat Map By Year", row + 2, heat_map)?;
+            self.write_heat_map_yearly_(&mut sheet, "Heat Map By Year", row + 2, heat_map);
         }
 
         self.add_sheet(sheet);
-        Ok(())
     }
 
-    fn write_trades(&mut self) -> Result<(), Error> {
+    fn write_trades(&mut self) {
         let inputs = self.portfolio.positions.iter().flat_map(|position| {
             position
                 .trades
@@ -283,11 +288,59 @@ impl<'a> OdsOutput<'a> {
         let mut sheet = Sheet::new("Trades");
         table.write(&mut sheet, self, 0, 0, inputs);
         self.add_sheet(sheet);
-
-        Ok(())
     }
 
-    fn write_position_indicators(&mut self) -> Result<(), Error> {
+    fn write_close_positions(&mut self) {
+        let mut sheet = Sheet::new("Close Position");
+        if self.write_close_positions_(&mut sheet, 0, 0, None) != 0 {
+            self.add_sheet(sheet);
+        } else {
+            self.remove_sheet(sheet.name());
+        }
+    }
+
+    fn write_close_positions_(
+        &mut self,
+        sheet: &mut Sheet,
+        row: u32,
+        col: u32,
+        limit_size: Option<usize>,
+    ) -> u32 {
+        let mut inputs = ClosePositionIndicator::from_portfolios(&self.indicators.portfolios);
+        inputs.sort_by(|left, right| right.close.cmp(&left.close));
+        if inputs.is_empty() {
+            return 0;
+        }
+
+        let mut table = TableBuilder::new();
+        table
+            .add(
+                "Instrument Description",
+                |position: &&ClosePositionIndicator| &position.instrument.description,
+            )
+            .add("Open", |position: &&ClosePositionIndicator| position.open)
+            .add("Close", |position: &&ClosePositionIndicator| position.close)
+            .add("P&L", |position: &&ClosePositionIndicator| {
+                currency!(&position.instrument.currency.name, position.pnl_currency)
+            })
+            .add("Fees", |position: &&ClosePositionIndicator| {
+                currency!(&position.instrument.currency.name, position.fees)
+            })
+            .add("Dividends", |position: &&ClosePositionIndicator| {
+                currency!(&position.instrument.currency.name, position.dividends)
+            })
+            .add("TWR", |position: &&ClosePositionIndicator| {
+                percent!(position.twr)
+            });
+
+        if let Some(size) = limit_size {
+            table.write(sheet, self, row, col, inputs.iter().take(size))
+        } else {
+            table.write(sheet, self, row, col, inputs.iter())
+        }
+    }
+
+    fn write_position_indicators(&mut self) {
         let inputs = self
             .indicators
             .portfolios
@@ -363,14 +416,9 @@ impl<'a> OdsOutput<'a> {
         } else {
             self.remove_sheet(sheet.name());
         }
-
-        Ok(())
     }
 
-    fn write_position_instrument_indicators(
-        &mut self,
-        indicators: PositionIndicators,
-    ) -> Result<(), Error> {
+    fn write_position_instrument_indicators(&mut self, indicators: PositionIndicators) {
         let mut is_close = false;
         let inputs = indicators.positions.iter().take_while(|item| {
             if !is_close {
@@ -471,23 +519,21 @@ impl<'a> OdsOutput<'a> {
         } else {
             self.remove_sheet(sheet.name());
         }
-
-        Ok(())
     }
 
-    fn write_heat_map(&mut self) -> Result<(), Error> {
+    fn write_heat_map(&mut self) {
         let mut sheet = Sheet::new("Heat Map");
 
         let heat_map =
             HeatMap::from_portfolios(self.indicators, HeatMapPeriod::Monthly, |indicator| {
                 indicator.pnl_percent
             });
-        let mut row = self.write_heat_map_monthly_(&mut sheet, "Portfolio Monthly", 0, heat_map)?;
+        let mut row = self.write_heat_map_monthly_(&mut sheet, "Portfolio Monthly", 0, heat_map);
         let heat_map =
             HeatMap::from_portfolios(self.indicators, HeatMapPeriod::Yearly, |indicator| {
                 indicator.pnl_percent
             });
-        row = self.write_heat_map_yearly_(&mut sheet, "Portfolio Yearly", row + 1, heat_map)?;
+        row = self.write_heat_map_yearly_(&mut sheet, "Portfolio Yearly", row + 1, heat_map);
 
         for instrument_name in self.portfolio.get_instrument_name_list() {
             for position_index in self.indicators.get_position_index_list(instrument_name) {
@@ -505,7 +551,7 @@ impl<'a> OdsOutput<'a> {
                     &format!("Portfolio Monthly {} / {}", instrument_name, position_index),
                     row + 1,
                     heat_map,
-                )?;
+                );
 
                 let heat_map = HeatMap::from_positions(
                     &position_indicators,
@@ -517,20 +563,19 @@ impl<'a> OdsOutput<'a> {
                     &format!("Portfolio Yearly {} / {}", instrument_name, position_index),
                     row + 1,
                     heat_map,
-                )?;
+                );
             }
         }
 
         self.add_sheet(sheet);
-        Ok(())
     }
 
-    fn write_distribution(&mut self) -> Result<(), Error> {
+    fn write_distribution(&mut self) {
         let mut sheet = Sheet::new("Distribution");
         if let Some(portfolio) = self.indicators.portfolios.last() {
             let region_indicators = RegionIndicator::from_portfolio(portfolio);
             let mut row =
-                self.write_distribution_by_region(&mut sheet, "by region", &region_indicators, 0)?;
+                self.write_distribution_by_region(&mut sheet, "by region", &region_indicators, 0);
 
             let intrument_indicators = InstrumentIndicator::from_portfolio(portfolio);
             row = self.write_distribution_by_instrument(
@@ -538,7 +583,7 @@ impl<'a> OdsOutput<'a> {
                 "by instrument",
                 &intrument_indicators,
                 row + 2,
-            )?;
+            );
 
             for region_indicator in region_indicators {
                 row = self.write_distribution_global_by_instrument(
@@ -546,11 +591,10 @@ impl<'a> OdsOutput<'a> {
                     &format!("by instrument in {}", region_indicator.region_name),
                     &region_indicator.instruments,
                     row + 2,
-                )?;
+                );
             }
         }
         self.add_sheet(sheet);
-        Ok(())
     }
 
     fn write_distribution_by_region(
@@ -559,14 +603,14 @@ impl<'a> OdsOutput<'a> {
         name: &str,
         data: &Vec<RegionIndicator>,
         mut row: u32,
-    ) -> Result<u32, Error> {
+    ) -> u32 {
         sheet.set_value(row, 0, Value::Text(name.to_string()));
         for indicator in data {
             sheet.set_value(row, 1, Value::Text(indicator.region_name.to_string()));
             sheet.set_value(row, 2, percent!(indicator.valuation_percent));
             row += 1;
         }
-        Ok(row)
+        row
     }
 
     fn write_distribution_by_instrument(
@@ -575,14 +619,14 @@ impl<'a> OdsOutput<'a> {
         name: &str,
         data: &Vec<InstrumentIndicator>,
         mut row: u32,
-    ) -> Result<u32, Error> {
+    ) -> u32 {
         sheet.set_value(row, 0, Value::Text(name.to_string()));
         for indicator in data {
             sheet.set_value(row, 1, Value::Text(indicator.instrument.name.to_string()));
             sheet.set_value(row, 2, percent!(indicator.valuation_percent));
             row += 1;
         }
-        Ok(row)
+        row
     }
 
     fn write_distribution_global_by_instrument(
@@ -591,14 +635,14 @@ impl<'a> OdsOutput<'a> {
         name: &str,
         data: &Vec<RegionIndicatorInstrument>,
         mut row: u32,
-    ) -> Result<u32, Error> {
+    ) -> u32 {
         sheet.set_value(row, 0, Value::Text(name.to_string()));
         for indicator in data {
             sheet.set_value(row, 1, Value::Text(indicator.instrument.name.to_string()));
             sheet.set_value(row, 2, percent!(indicator.valuation_percent));
             row += 1;
         }
-        Ok(row)
+        row
     }
 
     fn write_heat_map_monthly_(
@@ -607,7 +651,7 @@ impl<'a> OdsOutput<'a> {
         name: &str,
         mut row: u32,
         heat_map: HeatMap,
-    ) -> Result<u32, Error> {
+    ) -> u32 {
         sheet.set_value(row, 0, Value::Text(name.to_string()));
         for (i, header_name) in [
             "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct,", "Nov", "Dec",
@@ -635,7 +679,7 @@ impl<'a> OdsOutput<'a> {
             row += 1;
         }
 
-        Ok(row)
+        row
     }
 
     fn write_heat_map_yearly_(
@@ -644,14 +688,14 @@ impl<'a> OdsOutput<'a> {
         name: &str,
         mut row: u32,
         heat_map: HeatMap,
-    ) -> Result<u32, Error> {
+    ) -> u32 {
         sheet.set_value(row, 0, Value::Text(name.to_string()));
         for (date, value) in heat_map.data {
             sheet.set_value(row, 1, date.year());
             sheet.set_value(row, 2, percent!(value));
             row += 1;
         }
-        Ok(row)
+        row
     }
 
     fn get_currency_format(&mut self, name: &str) -> Result<ValueFormatRef, Error> {
@@ -745,19 +789,22 @@ impl Output for OdsOutput<'_> {
         self.create_style()?;
 
         debug!("write summary");
-        self.write_summary()?;
+        self.write_summary();
 
         debug!("write trades");
-        self.write_trades()?;
+        self.write_trades();
+
+        debug!("write close positions");
+        self.write_close_positions();
 
         debug!("write heat map");
-        self.write_heat_map()?;
+        self.write_heat_map();
 
         debug!("write distribution");
-        self.write_distribution()?;
+        self.write_distribution();
 
         debug!("write position indicators");
-        self.write_position_indicators()?;
+        self.write_position_indicators();
 
         for instrument_name in self.portfolio.get_instrument_name_list() {
             for position_index in self.indicators.get_position_index_list(instrument_name) {
@@ -768,7 +815,7 @@ impl Output for OdsOutput<'_> {
                 let position_indicators = self
                     .indicators
                     .get_position_indicators(instrument_name, position_index);
-                self.write_position_instrument_indicators(position_indicators)?;
+                self.write_position_instrument_indicators(position_indicators);
             }
         }
 

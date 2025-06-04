@@ -16,7 +16,7 @@ mod region;
 pub use heat_map::{HeatMap, HeatMapPeriod};
 pub use instrument::InstrumentIndicator;
 pub use portfolio::PortfolioIndicator;
-pub use position::PositionIndicator;
+pub use position::{ClosePositionIndicator, PositionIndicator};
 pub use region::{RegionIndicator, RegionIndicatorInstrument};
 
 pub struct PositionIndicators<'a> {
