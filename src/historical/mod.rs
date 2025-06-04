@@ -8,7 +8,7 @@ use crate::marketdata::Instrument;
 mod yahoo;
 pub use yahoo::*;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Default)]
 pub struct DataFrame {
     pub date: Date,
     pub open: f64,

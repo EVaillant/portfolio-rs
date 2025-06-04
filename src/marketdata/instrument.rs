@@ -2,7 +2,7 @@ use crate::alias::DateTime;
 use crate::marketdata::{Currency, Market};
 use std::rc::Rc;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Instrument {
     pub name: String,
     pub isin: String,
