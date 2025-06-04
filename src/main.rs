@@ -1,8 +1,8 @@
 use chrono::Local;
 use clap::{Parser, ValueEnum};
 use env_logger::Builder;
-use log::info;
 use log::LevelFilter;
+use log::info;
 use portfolio::Portfolio;
 use std::io::Write;
 
