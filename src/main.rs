@@ -89,8 +89,12 @@ struct Args {
     pricing_date: String,
 
     /// filter output indicator(s)
-    #[clap(short = 'f', long, value_parser = parse_indicators_filter)]
+    #[clap(long, value_parser = parse_indicators_filter)]
     indicators_filter: Option<Date>,
+
+    /// ods details sheet
+    #[clap(default_value_t = false, long, value_parser)]
+    ods_details_sheet: bool,
 }
 
 fn parse_indicators_filter(arg: &str) -> Result<Date, clap::Error> {
@@ -195,6 +199,7 @@ fn main() -> Result<(), Error> {
                 &portfolio,
                 &portfolio_indicators,
                 &args.indicators_filter,
+                args.ods_details_sheet,
             )?;
             output.write()?;
         }

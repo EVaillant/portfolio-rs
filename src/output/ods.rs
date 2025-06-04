@@ -26,6 +26,7 @@ pub struct OdsOutput<'a> {
     portfolio: &'a Portfolio,
     indicators: &'a PortfolioIndicators,
     filter_indicators: &'a Option<Date>,
+    details_sheet: bool,
 }
 
 impl TableBuilderStyleResolver for OdsOutput<'_> {
@@ -44,6 +45,7 @@ impl<'a> OdsOutput<'a> {
         portfolio: &'a Portfolio,
         indicators: &'a PortfolioIndicators,
         filter_indicators: &'a Option<Date>,
+        details_sheet: bool,
     ) -> Result<Self, Error> {
         let output_filename = format!("{}/{}.ods", output_dir, portfolio.name);
         Ok(Self {
@@ -52,6 +54,7 @@ impl<'a> OdsOutput<'a> {
             portfolio,
             indicators,
             filter_indicators,
+            details_sheet,
         })
     }
 
@@ -791,31 +794,33 @@ impl Output for OdsOutput<'_> {
         debug!("write summary");
         self.write_summary();
 
-        debug!("write trades");
-        self.write_trades();
+        if self.details_sheet {
+            debug!("write trades");
+            self.write_trades();
 
-        debug!("write close positions");
-        self.write_close_positions();
+            debug!("write close positions");
+            self.write_close_positions();
 
-        debug!("write heat map");
-        self.write_heat_map();
+            debug!("write heat map");
+            self.write_heat_map();
 
-        debug!("write distribution");
-        self.write_distribution();
+            debug!("write distribution");
+            self.write_distribution();
 
-        debug!("write position indicators");
-        self.write_position_indicators();
+            debug!("write position indicators");
+            self.write_position_indicators();
 
-        for instrument_name in self.portfolio.get_instrument_name_list() {
-            for position_index in self.indicators.get_position_index_list(instrument_name) {
-                debug!(
-                    "write position indicators for {} / {}",
-                    instrument_name, position_index
-                );
-                let position_indicators = self
-                    .indicators
-                    .get_position_indicators(instrument_name, position_index);
-                self.write_position_instrument_indicators(position_indicators);
+            for instrument_name in self.portfolio.get_instrument_name_list() {
+                for position_index in self.indicators.get_position_index_list(instrument_name) {
+                    debug!(
+                        "write position indicators for {} / {}",
+                        instrument_name, position_index
+                    );
+                    let position_indicators = self
+                        .indicators
+                        .get_position_indicators(instrument_name, position_index);
+                    self.write_position_instrument_indicators(position_indicators);
+                }
             }
         }
 
