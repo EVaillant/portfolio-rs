@@ -618,6 +618,135 @@ mod tests {
         }
     }
 
+    fn build_position_indicator_(
+        instrument_name: &str,
+        position_index: usize,
+        date: Date,
+        is_close: bool,
+        earning: f64,
+        fees: f64,
+        dividends: f64,
+    ) -> PositionIndicator {
+        let instrument = make_instrument_(instrument_name, None);
+        PositionIndicator {
+            date,
+            instrument,
+            position_index,
+            is_close,
+            earning,
+            fees,
+            dividends,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn close_position() {
+        let date1 = make_date_(2025, 1, 1);
+        let date2 = make_date_(2025, 1, 2);
+        let date3 = make_date_(2025, 1, 3);
+        let date4 = make_date_(2025, 1, 4);
+        {
+            let result = ClosePositionIndicator::from_positions(&[
+                &build_position_indicator_("ESE", 1, date1, false, 10.0, 2.0, 0.0),
+                &build_position_indicator_("ESE", 1, date2, false, 20.0, 3.0, 5.0),
+                &build_position_indicator_("ESE", 1, date3, false, 50.0, 4.0, 10.0),
+                &build_position_indicator_("ESE", 1, date4, true, 100.0, 5.0, 12.0),
+            ]);
+            assert!(result.open == date1);
+            assert!(result.close == date4);
+            assert!(result.instrument.name == "ESE");
+            assert!(result.position_index == 1);
+            assert_float_absolute_eq!(result.pnl_currency, 100.0, 1e-7);
+            assert_float_absolute_eq!(result.dividends, 12.0, 1e-7);
+            assert_float_absolute_eq!(result.fees, 5.0, 1e-7);
+        }
+        {
+            let portfolios = vec![];
+            let results = ClosePositionIndicator::from_portfolios(&portfolios);
+            assert!(results.is_empty());
+        }
+        {
+            let portfolios = vec![
+                PortfolioIndicator {
+                    date: date1,
+                    positions: vec![
+                        build_position_indicator_("ESE", 1, date1, false, 10.0, 2.0, 0.0),
+                        build_position_indicator_("ASA", 2, date1, false, 10.0, 2.0, 0.0),
+                        build_position_indicator_("BSB", 3, date1, false, 10.0, 2.0, 0.0),
+                        build_position_indicator_("CSC", 4, date1, false, 10.0, 2.0, 0.0),
+                    ],
+                    ..Default::default()
+                },
+                PortfolioIndicator {
+                    date: date2,
+                    positions: vec![
+                        build_position_indicator_("ESE", 1, date2, false, 10.0, 2.0, 0.0),
+                        build_position_indicator_("ASA", 2, date2, false, 10.0, 2.0, 0.0),
+                        build_position_indicator_("BSB", 3, date2, true, 8.0, 9.0, 10.0),
+                        build_position_indicator_("CSC", 4, date2, false, 10.0, 2.0, 0.0),
+                    ],
+                    ..Default::default()
+                },
+                PortfolioIndicator {
+                    date: date3,
+                    positions: vec![
+                        build_position_indicator_("ESE", 1, date3, false, 10.0, 2.0, 0.0),
+                        build_position_indicator_("ASA", 2, date3, true, 5.0, 4.0, 9.0),
+                        build_position_indicator_("BSB", 3, date3, true, 10.0, 2.0, 0.0),
+                        build_position_indicator_("CSC", 4, date3, false, 10.0, 2.0, 0.0),
+                    ],
+                    ..Default::default()
+                },
+                PortfolioIndicator {
+                    date: date4,
+                    positions: vec![
+                        build_position_indicator_("ESE", 1, date4, true, 1.0, 0.0, 2.0),
+                        build_position_indicator_("ASA", 2, date4, true, 10.0, 2.0, 0.0),
+                        build_position_indicator_("BSB", 3, date4, true, 10.0, 2.0, 0.0),
+                        build_position_indicator_("CSC", 4, date4, false, 10.0, 2.0, 0.0),
+                    ],
+                    ..Default::default()
+                },
+            ];
+            let results = ClosePositionIndicator::from_portfolios(&portfolios);
+            assert!(results.len() == 3);
+
+            let result = results.iter().find(|item| item.instrument.name == "ESE");
+            assert!(result.is_some());
+            let result = result.unwrap();
+            assert!(result.open == date1);
+            assert!(result.close == date4);
+            assert!(result.instrument.name == "ESE");
+            assert!(result.position_index == 1);
+            assert_float_absolute_eq!(result.pnl_currency, 1.0, 1e-7);
+            assert_float_absolute_eq!(result.fees, 0.0, 1e-7);
+            assert_float_absolute_eq!(result.dividends, 2.0, 1e-7);
+
+            let result = results.iter().find(|item| item.instrument.name == "ASA");
+            assert!(result.is_some());
+            let result = result.unwrap();
+            assert!(result.open == date1);
+            assert!(result.close == date3);
+            assert!(result.instrument.name == "ASA");
+            assert!(result.position_index == 2);
+            assert_float_absolute_eq!(result.pnl_currency, 5.0, 1e-7);
+            assert_float_absolute_eq!(result.fees, 4.0, 1e-7);
+            assert_float_absolute_eq!(result.dividends, 9.0, 1e-7);
+
+            let result = results.iter().find(|item| item.instrument.name == "BSB");
+            assert!(result.is_some());
+            let result = result.unwrap();
+            assert!(result.open == date1);
+            assert!(result.close == date2);
+            assert!(result.instrument.name == "BSB");
+            assert!(result.position_index == 3);
+            assert_float_absolute_eq!(result.pnl_currency, 8.0, 1e-7);
+            assert_float_absolute_eq!(result.fees, 9.0, 1e-7);
+            assert_float_absolute_eq!(result.dividends, 10.0, 1e-7);
+        }
+    }
+
     fn check_indicator_(
         indicator: &PositionIndicator,
         valuation: f64,
