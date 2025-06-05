@@ -231,11 +231,11 @@ impl ClosePositionIndicator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::marketdata::{Currency, Instrument, Market};
+    use crate::marketdata::{Currency, Dividend, Instrument, Market};
     use crate::portfolio::{Position, Trade, Way};
     use assert_float_eq::*;
 
-    fn make_instrument_(name: &str) -> Rc<Instrument> {
+    fn make_instrument_(name: &str, dividends: Option<Vec<Dividend>>) -> Rc<Instrument> {
         let currency = Rc::new(Currency {
             name: String::from("EUR"),
             parent_currency: None,
@@ -255,7 +255,7 @@ mod tests {
             ticker_yahoo: None,
             region: None,
             fund_category: String::from("category"),
-            dividends: None,
+            dividends,
         })
     }
 
@@ -268,7 +268,7 @@ mod tests {
     }
 
     fn make_position_() -> Position {
-        let instrument = make_instrument_("PAEEM");
+        let instrument = make_instrument_("PAEEM", None);
         Position {
             instrument,
             trades: vec![
@@ -314,7 +314,7 @@ mod tests {
 
     #[test]
     fn compute_position_without_trade() {
-        let instrument = make_instrument_("PAEEM");
+        let instrument = make_instrument_("PAEEM", None);
         let position = Position {
             instrument,
             trades: Default::default(),
@@ -526,6 +526,95 @@ mod tests {
             let earning =
                 PositionIndicator::compute_earning_without_div_(&position, make_date_(2022, 3, 22));
             assert_float_absolute_eq!(earning, 701.5 - 693.55, 1e-7);
+        }
+    }
+
+    #[test]
+    fn compute_dividends() {
+        {
+            let instrument = make_instrument_("WHATEVER", Some(vec![]));
+            let position = Position {
+                instrument,
+                trades: Default::default(),
+            };
+            let result = PositionIndicator::compute_dividends_(&position, make_date_(2022, 3, 20));
+            assert_float_absolute_eq!(result, 0.0, 1e-7);
+        }
+
+        {
+            let instrument = make_instrument_(
+                "WHATEVER",
+                Some(vec![Dividend {
+                    record_date: chrono::DateTime::parse_from_rfc3339("2022-03-01T08:00:00-00:00")
+                        .unwrap()
+                        .naive_local(),
+                    payment_date: chrono::DateTime::parse_from_rfc3339("2022-03-10T08:00:00-00:00")
+                        .unwrap()
+                        .naive_local(),
+                    value: 5.0,
+                }]),
+            );
+            let position = Position {
+                instrument,
+                trades: Default::default(),
+            };
+            let result = PositionIndicator::compute_dividends_(&position, make_date_(2022, 3, 20));
+            assert_float_absolute_eq!(result, 0.0, 1e-7);
+        }
+
+        {
+            let instrument = make_instrument_(
+                "WHATEVER",
+                Some(vec![Dividend {
+                    record_date: chrono::DateTime::parse_from_rfc3339("2022-03-01T08:00:00-00:00")
+                        .unwrap()
+                        .naive_local(),
+                    payment_date: chrono::DateTime::parse_from_rfc3339("2022-03-10T08:00:00-00:00")
+                        .unwrap()
+                        .naive_local(),
+                    value: 5.0,
+                }]),
+            );
+            let position = Position {
+                instrument,
+                trades: vec![
+                    Trade {
+                        date: chrono::DateTime::parse_from_rfc3339("2022-02-17T10:00:00-00:00")
+                            .unwrap()
+                            .naive_local(),
+                        way: Way::Buy,
+                        quantity: 14.0,
+                        price: 21.5,
+                        fees: 1.55,
+                    },
+                    Trade {
+                        date: chrono::DateTime::parse_from_rfc3339("2022-03-09T10:00:00-00:00")
+                            .unwrap()
+                            .naive_local(),
+                        way: Way::Buy,
+                        quantity: 20.0,
+                        price: 19.5,
+                        fees: 1.0,
+                    },
+                    Trade {
+                        date: chrono::DateTime::parse_from_rfc3339("2022-03-21T10:00:00-00:00")
+                            .unwrap()
+                            .naive_local(),
+                        way: Way::Buy,
+                        quantity: 10.0,
+                        price: 20.0,
+                        fees: 1.2,
+                    },
+                ],
+            };
+            let result = PositionIndicator::compute_dividends_(&position, make_date_(2022, 3, 20));
+            assert_float_absolute_eq!(result, 14.0 * 5.0, 1e-7);
+
+            let result = PositionIndicator::compute_dividends_(&position, make_date_(2022, 3, 5));
+            assert_float_absolute_eq!(result, 0.0, 1e-7);
+
+            let result = PositionIndicator::compute_dividends_(&position, make_date_(2022, 2, 20));
+            assert_float_absolute_eq!(result, 0.0, 1e-7);
         }
     }
 
