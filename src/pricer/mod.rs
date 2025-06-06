@@ -184,3 +184,197 @@ impl PortfolioIndicators {
         indicators
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::historical::DataFrame;
+    use crate::marketdata::{Currency, Instrument, Market};
+    use crate::portfolio::{Position, Trade, Way};
+    use std::rc::Rc;
+
+    #[derive(Default)]
+    struct MockSpotProvider {
+        pub instrument_feched: Vec<(String, Date, Date)>,
+    }
+
+    impl Provider for MockSpotProvider {
+        fn fetch(&mut self, instrument: &Instrument, begin: Date, end: Date) -> Result<(), Error> {
+            self.instrument_feched
+                .push((instrument.name.clone(), begin, end));
+            Ok(())
+        }
+        fn latest(&self, _instrument: &Instrument, _date: Date) -> Option<&DataFrame> {
+            None
+        }
+    }
+
+    fn make_date_(year: i32, month: u32, day: u32) -> Date {
+        chrono::NaiveDate::from_ymd_opt(year, month, day).unwrap()
+    }
+
+    fn make_instrument_(name: &str) -> Rc<Instrument> {
+        let currency = Rc::new(Currency {
+            name: String::from("EUR"),
+            parent_currency: None,
+        });
+
+        let market = Rc::new(Market {
+            name: String::from("EPA"),
+            description: String::from("EPA"),
+        });
+
+        Rc::new(Instrument {
+            name: String::from(name),
+            isin: String::from("ISIN"),
+            description: String::from("description"),
+            market,
+            currency,
+            ticker_yahoo: None,
+            region: None,
+            fund_category: String::from("category"),
+            dividends: None,
+        })
+    }
+
+    fn build_portfolio_empty_() -> Portfolio {
+        let currency = Rc::new(Currency {
+            name: String::from("EUR"),
+            parent_currency: None,
+        });
+
+        Portfolio {
+            name: "PTF".to_string(),
+            currency,
+            positions: Vec::new(),
+            cash: Vec::new(),
+        }
+    }
+
+    fn build_portfolio_fetch_() -> Portfolio {
+        let currency = Rc::new(Currency {
+            name: String::from("EUR"),
+            parent_currency: None,
+        });
+
+        let instrument1 = make_instrument_("ESE");
+        let instrument2 = make_instrument_("PAEEM");
+
+        Portfolio {
+            name: "PTF".to_string(),
+            currency,
+            positions: vec![
+                Position {
+                    instrument: instrument1,
+                    trades: vec![
+                        Trade {
+                            date: chrono::DateTime::parse_from_rfc3339("2025-01-01T10:00:00-00:00")
+                                .unwrap()
+                                .naive_local(),
+                            way: Way::Buy,
+                            quantity: 14.0,
+                            price: 21.5,
+                            fees: 1.55,
+                        },
+                        Trade {
+                            date: chrono::DateTime::parse_from_rfc3339("2025-02-01T10:00:00-00:00")
+                                .unwrap()
+                                .naive_local(),
+                            way: Way::Buy,
+                            quantity: 20.0,
+                            price: 21.5,
+                            fees: 1.55,
+                        },
+                        Trade {
+                            date: chrono::DateTime::parse_from_rfc3339("2025-03-01T10:00:00-00:00")
+                                .unwrap()
+                                .naive_local(),
+                            way: Way::Buy,
+                            quantity: 14.0,
+                            price: 20.5,
+                            fees: 1.55,
+                        },
+                        Trade {
+                            date: chrono::DateTime::parse_from_rfc3339("2025-04-01T10:00:00-00:00")
+                                .unwrap()
+                                .naive_local(),
+                            way: Way::Buy,
+                            quantity: 22.0,
+                            price: 21.5,
+                            fees: 1.55,
+                        },
+                    ],
+                },
+                Position {
+                    instrument: instrument2,
+                    trades: vec![
+                        Trade {
+                            date: chrono::DateTime::parse_from_rfc3339("2025-02-01T10:00:00-00:00")
+                                .unwrap()
+                                .naive_local(),
+                            way: Way::Buy,
+                            quantity: 20.0,
+                            price: 21.5,
+                            fees: 1.55,
+                        },
+                        Trade {
+                            date: chrono::DateTime::parse_from_rfc3339("2025-03-01T10:00:00-00:00")
+                                .unwrap()
+                                .naive_local(),
+                            way: Way::Sell,
+                            quantity: 20.0,
+                            price: 20.5,
+                            fees: 1.55,
+                        },
+                    ],
+                },
+            ],
+            cash: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn portfolio_indicators_empty() {
+        let portfolio = build_portfolio_empty_();
+        let mut spot_provider = MockSpotProvider::default();
+        let begin = make_date_(2025, 1, 1);
+        let end = make_date_(2025, 3, 4);
+        let result =
+            PortfolioIndicators::from_portfolio(&portfolio, begin, end, &mut spot_provider);
+        assert!(result.is_ok());
+        let result = result.unwrap();
+        assert!(result.begin == begin);
+        assert!(result.end == end);
+        assert!(result.portfolios.is_empty());
+    }
+
+    #[test]
+    fn portfolio_indicators_fetch_() {
+        let portfolio = build_portfolio_fetch_();
+        let mut spot_provider = MockSpotProvider::default();
+        let begin = make_date_(2025, 1, 1);
+        let end = make_date_(2025, 3, 4);
+        let result =
+            PortfolioIndicators::from_portfolio(&portfolio, begin, end, &mut spot_provider);
+        assert!(result.is_ok());
+        assert!(spot_provider.instrument_feched.len() == 2);
+
+        let data = spot_provider
+            .instrument_feched
+            .iter()
+            .find(|(name, _, _)| name == "ESE");
+        assert!(data.is_some());
+        let data = data.unwrap();
+        assert!(data.1 == begin);
+        assert!(data.2 == end);
+
+        let data = spot_provider
+            .instrument_feched
+            .iter()
+            .find(|(name, _, _)| name == "PAEEM");
+        assert!(data.is_some());
+        let data = data.unwrap();
+        assert!(data.1 == make_date_(2025, 2, 1));
+        assert!(data.2 == make_date_(2025, 3, 1));
+    }
+}
