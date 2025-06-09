@@ -8,7 +8,7 @@ use std::rc::Rc;
 
 use log::debug;
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct PositionIndicator {
     pub date: Date,
     pub spot: DataFrame,
