@@ -19,7 +19,7 @@ pub use portfolio::PortfolioIndicator;
 pub use position::{ClosePositionIndicator, PositionIndicator};
 pub use region::{RegionIndicator, RegionIndicatorInstrument};
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct PositionIndicators<'a> {
     pub begin: Date,
     pub end: Date,
@@ -28,6 +28,7 @@ pub struct PositionIndicators<'a> {
     pub positions: Vec<&'a PositionIndicator>,
 }
 
+#[derive(Default)]
 pub struct PortfolioIndicators {
     pub begin: Date,
     pub end: Date,

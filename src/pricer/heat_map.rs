@@ -28,7 +28,7 @@ impl HeatMapComputeMode {
         match self {
             HeatMapComputeMode::Value => left - right,
             HeatMapComputeMode::Delta => (left + 1.0) / (right + 1.0) - 1.0,
-            HeatMapComputeMode::Percent => (right - left) / left,
+            HeatMapComputeMode::Percent => (left - right) / left,
         }
     }
 }
@@ -130,9 +130,144 @@ mod tests {
         Date::from_ymd_opt(year, month, day).unwrap()
     }
 
+    fn check_monthly_<B>(builder: B)
+    where
+        B: Fn(HeatMapPeriod, HeatMapComputeMode) -> HeatMap,
+    {
+        let heat_map_delta = builder(HeatMapPeriod::Monthly, HeatMapComputeMode::Delta);
+        assert!(
+            heat_map_delta.data.len() == 3,
+            "heat_map_delta.data.len() = {}",
+            heat_map_delta.data.len()
+        );
+
+        let heat_map_value = builder(HeatMapPeriod::Monthly, HeatMapComputeMode::Value);
+        assert!(
+            heat_map_value.data.len() == 3,
+            "heat_map_value.data.len() = {}",
+            heat_map_value.data.len()
+        );
+
+        let heat_map_percent = builder(HeatMapPeriod::Monthly, HeatMapComputeMode::Percent);
+        assert!(
+            heat_map_percent.data.len() == 3,
+            "heat_map_percent.data.len() = {}",
+            heat_map_percent.data.len()
+        );
+
+        for (i, (wanted_date, wanted_value_delta, wanted_value_value, wanted_value_percent)) in [
+            (make_date_(2023, 9, 26), 0.6, 0.6, 1.0),
+            (
+                make_date_(2023, 10, 31),
+                (0.2 + 1.0) / (0.6 + 1.0) - 1.0,
+                0.2 - 0.6,
+                (0.2 - 0.6) / 0.2,
+            ),
+            (
+                make_date_(2023, 11, 2),
+                (0.8 + 1.0) / (0.2 + 1.0) - 1.0,
+                0.8 - 0.2,
+                (0.8 - 0.2) / 0.8,
+            ),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            dbg!(
+                i,
+                wanted_date,
+                wanted_value_delta,
+                wanted_value_value,
+                heat_map_delta.data[i].0,
+                heat_map_delta.data[i].1,
+                heat_map_value.data[i].0,
+                heat_map_value.data[i].1,
+                heat_map_percent.data[i].0,
+                heat_map_percent.data[i].1,
+            );
+
+            assert!(heat_map_delta.data[i].0 == wanted_date);
+            assert_float_absolute_eq!(heat_map_delta.data[i].1, wanted_value_delta, 1e-7);
+
+            assert!(heat_map_value.data[i].0 == wanted_date);
+            assert_float_absolute_eq!(heat_map_value.data[i].1, wanted_value_value, 1e-7);
+
+            assert!(heat_map_percent.data[i].0 == wanted_date);
+            assert_float_absolute_eq!(heat_map_percent.data[i].1, wanted_value_percent, 1e-7);
+        }
+    }
+
+    fn check_yearly_<B>(builder: B)
+    where
+        B: Fn(HeatMapPeriod, HeatMapComputeMode) -> HeatMap,
+    {
+        let heat_map_delta = builder(HeatMapPeriod::Yearly, HeatMapComputeMode::Delta);
+        assert!(
+            heat_map_delta.data.len() == 3,
+            "heat_map_delta.data.len() = {}",
+            heat_map_delta.data.len()
+        );
+
+        let heat_map_value = builder(HeatMapPeriod::Yearly, HeatMapComputeMode::Value);
+        assert!(
+            heat_map_value.data.len() == 3,
+            "heat_map_value.data.len() = {}",
+            heat_map_value.data.len()
+        );
+
+        let heat_map_percent = builder(HeatMapPeriod::Yearly, HeatMapComputeMode::Percent);
+        assert!(
+            heat_map_percent.data.len() == 3,
+            "heat_map_percent.data.len() = {}",
+            heat_map_percent.data.len()
+        );
+
+        for (i, (wanted_date, wanted_value_delta, wanted_value_value, wanted_value_percent)) in [
+            (make_date_(2022, 9, 25), 0.5, 0.5, 1.0),
+            (
+                make_date_(2023, 12, 20),
+                (0.9 + 1.0) / (0.5 + 1.0) - 1.0,
+                0.9 - 0.5,
+                (0.9 - 0.5) / 0.9,
+            ),
+            (
+                make_date_(2024, 1, 3),
+                (0.4 + 1.0) / (0.9 + 1.0) - 1.0,
+                0.4 - 0.9,
+                (0.4 - 0.9) / 0.4,
+            ),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            dbg!(
+                i,
+                wanted_date,
+                wanted_value_delta,
+                wanted_value_value,
+                heat_map_delta.data[i].0,
+                heat_map_delta.data[i].1,
+                heat_map_value.data[i].0,
+                heat_map_value.data[i].1,
+                heat_map_value.data[i].1,
+                heat_map_percent.data[i].0,
+                heat_map_percent.data[i].1,
+            );
+
+            assert!(heat_map_delta.data[i].0 == wanted_date);
+            assert_float_absolute_eq!(heat_map_delta.data[i].1, wanted_value_delta, 1e-7);
+
+            assert!(heat_map_value.data[i].0 == wanted_date);
+            assert_float_absolute_eq!(heat_map_value.data[i].1, wanted_value_value, 1e-7);
+
+            assert!(heat_map_percent.data[i].0 == wanted_date);
+            assert_float_absolute_eq!(heat_map_percent.data[i].1, wanted_value_percent, 1e-7);
+        }
+    }
+
     #[test]
-    fn heat_map_monthly() {
-        let input = vec![
+    fn monthly() {
+        let input = [
             (make_date_(2023, 9, 25), 0.5),
             (make_date_(2023, 9, 26), 0.6),
             (make_date_(2023, 10, 30), 0.0),
@@ -141,145 +276,97 @@ mod tests {
             (make_date_(2023, 11, 2), 0.8),
         ];
 
-        let heat_map_delta = HeatMap::from_(
-            &input,
-            HeatMapPeriod::Monthly,
-            HeatMapComputeMode::Delta,
-            |indicator| indicator.1,
-            |indicator| indicator.0,
-        );
-        assert!(
-            heat_map_delta.data.len() == 3,
-            "heat_map.data.len() = {}",
-            heat_map_delta.data.len()
-        );
-
-        let heat_map_value = HeatMap::from_(
-            &input,
-            HeatMapPeriod::Monthly,
-            HeatMapComputeMode::Value,
-            |indicator| indicator.1,
-            |indicator| indicator.0,
-        );
-        assert!(
-            heat_map_value.data.len() == 3,
-            "heat_map.data.len() = {}",
-            heat_map_value.data.len()
-        );
-
-        for (i, (wanted_date, wanted_value_delta, wanted_value_value)) in [
-            (make_date_(2023, 9, 26), 0.6, 0.6),
-            (
-                make_date_(2023, 10, 31),
-                (0.2 + 1.0) / (0.6 + 1.0) - 1.0,
-                0.2 - 0.6,
-            ),
-            (
-                make_date_(2023, 11, 2),
-                (0.8 + 1.0) / (0.2 + 1.0) - 1.0,
-                0.8 - 0.2,
-            ),
-        ]
-        .into_iter()
-        .enumerate()
         {
-            dbg!(
-                i,
-                wanted_date,
-                wanted_value_delta,
-                heat_map_delta.data[i].0,
-                heat_map_delta.data[i].1
-            );
-            assert!(heat_map_delta.data[i].0 == wanted_date);
-            assert_float_absolute_eq!(heat_map_delta.data[i].1, wanted_value_delta, 1e-7);
+            let positions = input
+                .iter()
+                .map(|(date, value)| PositionIndicator {
+                    date: *date,
+                    earning: *value,
+                    ..Default::default()
+                })
+                .collect::<Vec<_>>();
+            let positions = positions.iter().collect();
+            let indicators = PositionIndicators {
+                positions,
+                ..Default::default()
+            };
 
-            dbg!(
-                i,
-                wanted_date,
-                wanted_value_value,
-                heat_map_value.data[i].0,
-                heat_map_value.data[i].1
-            );
-            assert!(heat_map_value.data[i].0 == wanted_date);
-            assert_float_absolute_eq!(heat_map_value.data[i].1, wanted_value_value, 1e-7);
+            check_monthly_(|period, mode| {
+                HeatMap::from_positions(&indicators, period, mode, |item| item.earning)
+            });
+        }
+
+        {
+            let portfolios = input
+                .iter()
+                .map(|(date, value)| PortfolioIndicator {
+                    date: *date,
+                    earning: *value,
+                    ..Default::default()
+                })
+                .collect::<Vec<_>>();
+            let indicators = PortfolioIndicators {
+                portfolios,
+                ..Default::default()
+            };
+
+            check_monthly_(|period, mode| {
+                HeatMap::from_portfolios(&indicators, period, mode, |item| item.earning)
+            });
         }
     }
 
     #[test]
-    fn heat_map_yearly() {
-        let input = vec![
+    fn yearly() {
+        let input = [
             (make_date_(2022, 9, 25), 0.5),
             (make_date_(2023, 1, 6), 0.7),
             (make_date_(2023, 12, 20), 0.9),
             (make_date_(2024, 1, 3), 0.4),
         ];
 
-        let heat_map_delta = HeatMap::from_(
-            &input,
-            HeatMapPeriod::Yearly,
-            HeatMapComputeMode::Delta,
-            |indicator| indicator.1,
-            |indicator| indicator.0,
-        );
-        assert!(
-            heat_map_delta.data.len() == 3,
-            "heat_map.data.len() = {}",
-            heat_map_delta.data.len()
-        );
-
-        let heat_map_value = HeatMap::from_(
-            &input,
-            HeatMapPeriod::Yearly,
-            HeatMapComputeMode::Value,
-            |indicator| indicator.1,
-            |indicator| indicator.0,
-        );
-        assert!(
-            heat_map_value.data.len() == 3,
-            "heat_map.data.len() = {}",
-            heat_map_value.data.len()
-        );
-
-        for (i, (wanted_date, wanted_value_delta, wanted_value_value)) in [
-            (make_date_(2022, 9, 25), 0.5, 0.5),
-            (
-                make_date_(2023, 12, 20),
-                (0.9 + 1.0) / (0.5 + 1.0) - 1.0,
-                0.9 - 0.5,
-            ),
-            (
-                make_date_(2024, 1, 3),
-                (0.4 + 1.0) / (0.9 + 1.0) - 1.0,
-                0.4 - 0.9,
-            ),
-        ]
-        .into_iter()
-        .enumerate()
         {
-            dbg!(
-                i,
-                wanted_date,
-                wanted_value_delta,
-                heat_map_delta.data[i].0,
-                heat_map_delta.data[i].1
-            );
-            assert!(heat_map_delta.data[i].0 == wanted_date);
-            assert_float_absolute_eq!(heat_map_delta.data[i].1, wanted_value_delta, 1e-7);
+            let positions = input
+                .iter()
+                .map(|(date, value)| PositionIndicator {
+                    date: *date,
+                    earning: *value,
+                    ..Default::default()
+                })
+                .collect::<Vec<_>>();
+            let positions = positions.iter().collect();
+            let indicators = PositionIndicators {
+                positions,
+                ..Default::default()
+            };
 
-            dbg!(
-                i,
-                wanted_date,
-                wanted_value_value,
-                heat_map_value.data[i].0,
-                heat_map_value.data[i].1
-            );
-            assert!(heat_map_value.data[i].0 == wanted_date);
-            assert_float_absolute_eq!(heat_map_value.data[i].1, wanted_value_value, 1e-7);
+            check_yearly_(|period, mode| {
+                HeatMap::from_positions(&indicators, period, mode, |item| item.earning)
+            });
+        }
+
+        {
+            let portfolios = input
+                .iter()
+                .map(|(date, value)| PortfolioIndicator {
+                    date: *date,
+                    earning: *value,
+                    ..Default::default()
+                })
+                .collect::<Vec<_>>();
+            let indicators = PortfolioIndicators {
+                portfolios,
+                ..Default::default()
+            };
+
+            check_yearly_(|period, mode| {
+                HeatMap::from_portfolios(&indicators, period, mode, |item| item.earning)
+            });
         }
     }
 
     #[test]
-    fn heat_map_empty() {
+    fn empty() {
         let input: Vec<(Date, f64)> = Default::default();
         let heat_map = HeatMap::from_(
             &input,
@@ -296,7 +383,7 @@ mod tests {
     }
 
     #[test]
-    fn heat_map_one() {
+    fn one() {
         let input = vec![(make_date_(2023, 9, 25), 0.5)];
         let heat_map = HeatMap::from_(
             &input,
