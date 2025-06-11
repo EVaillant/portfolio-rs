@@ -5,8 +5,8 @@ use crate::alias::Date;
 use crate::error::Error;
 use crate::portfolio::Portfolio;
 use crate::pricer::{
-    HeatMap, HeatMapPeriod, InstrumentIndicator, PortfolioIndicators, PositionIndicators,
-    RegionIndicator, RegionIndicatorInstrument,
+    HeatMap, HeatMapComputeMode, HeatMapPeriod, InstrumentIndicator, PortfolioIndicators,
+    PositionIndicators, RegionIndicator, RegionIndicatorInstrument,
 };
 
 use std::collections::BTreeMap;
@@ -239,6 +239,7 @@ impl Output for CsvOutput<'_> {
                 let heat_map = HeatMap::from_positions(
                     &position_indicators,
                     HeatMapPeriod::Monthly,
+                    HeatMapComputeMode::Delta,
                     |indicator| indicator.pnl_percent,
                 );
                 self.write_heat_map_monthly(&filename, heat_map)?;
@@ -250,6 +251,7 @@ impl Output for CsvOutput<'_> {
                 let heat_map = HeatMap::from_positions(
                     &position_indicators,
                     HeatMapPeriod::Yearly,
+                    HeatMapComputeMode::Delta,
                     |indicator| indicator.pnl_percent,
                 );
                 self.write_heat_map_yearly(&filename, heat_map)?;
@@ -286,20 +288,24 @@ impl Output for CsvOutput<'_> {
         }
 
         let filename = format!("{}/heat_map_{}.csv", self.output_dir, self.portfolio.name);
-        let heat_map =
-            HeatMap::from_portfolios(self.indicators, HeatMapPeriod::Monthly, |indicator| {
-                indicator.pnl_percent
-            });
+        let heat_map = HeatMap::from_portfolios(
+            self.indicators,
+            HeatMapPeriod::Monthly,
+            HeatMapComputeMode::Delta,
+            |indicator| indicator.pnl_percent,
+        );
         self.write_heat_map_monthly(&filename, heat_map)?;
 
         let filename = format!(
             "{}/heat_map_yearly_{}.csv",
             self.output_dir, self.portfolio.name
         );
-        let heat_map =
-            HeatMap::from_portfolios(self.indicators, HeatMapPeriod::Yearly, |indicator| {
-                indicator.pnl_percent
-            });
+        let heat_map = HeatMap::from_portfolios(
+            self.indicators,
+            HeatMapPeriod::Yearly,
+            HeatMapComputeMode::Delta,
+            |indicator| indicator.pnl_percent,
+        );
         self.write_heat_map_yearly(&filename, heat_map)?;
 
         Ok(())

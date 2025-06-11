@@ -13,7 +13,7 @@ mod position;
 mod primitive;
 mod region;
 
-pub use heat_map::{HeatMap, HeatMapPeriod};
+pub use heat_map::{HeatMap, HeatMapComputeMode, HeatMapPeriod};
 pub use instrument::InstrumentIndicator;
 pub use portfolio::PortfolioIndicator;
 pub use position::{ClosePositionIndicator, PositionIndicator};

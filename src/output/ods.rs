@@ -5,9 +5,9 @@ use crate::error::Error;
 use crate::marketdata::Instrument;
 use crate::portfolio::{Portfolio, Trade};
 use crate::pricer::{
-    ClosePositionIndicator, HeatMap, HeatMapPeriod, InstrumentIndicator, PortfolioIndicator,
-    PortfolioIndicators, PositionIndicator, PositionIndicators, RegionIndicator,
-    RegionIndicatorInstrument,
+    ClosePositionIndicator, HeatMap, HeatMapComputeMode, HeatMapPeriod, InstrumentIndicator,
+    PortfolioIndicator, PortfolioIndicators, PositionIndicator, PositionIndicators,
+    RegionIndicator, RegionIndicatorInstrument,
 };
 use chrono::Datelike;
 use log::debug;
@@ -226,16 +226,35 @@ impl<'a> OdsOutput<'a> {
                 row,
             );
 
-            let heat_map =
-                HeatMap::from_portfolios(self.indicators, HeatMapPeriod::Monthly, |indicator| {
-                    indicator.pnl_percent
-                });
-            row = self.write_heat_map_monthly_(&mut sheet, "Heat Map By Month", row + 1, heat_map);
-            let heat_map =
-                HeatMap::from_portfolios(self.indicators, HeatMapPeriod::Yearly, |indicator| {
-                    indicator.pnl_percent
-                });
-            self.write_heat_map_yearly_(&mut sheet, "Heat Map By Year", row + 2, heat_map);
+            let heat_map = HeatMap::from_portfolios(
+                self.indicators,
+                HeatMapPeriod::Monthly,
+                HeatMapComputeMode::Delta,
+                |indicator| indicator.pnl_percent,
+            );
+            row = self.write_heat_map_monthly_(&mut sheet, "P&L By Month", row + 1, heat_map);
+
+            let heat_map = HeatMap::from_portfolios(
+                self.indicators,
+                HeatMapPeriod::Yearly,
+                HeatMapComputeMode::Delta,
+                |indicator| indicator.pnl_percent,
+            );
+            row = self.write_heat_map_yearly_percent_(&mut sheet, "P&L By Year", row + 2, heat_map);
+
+            let heat_map = HeatMap::from_portfolios(
+                self.indicators,
+                HeatMapPeriod::Yearly,
+                HeatMapComputeMode::Value,
+                |indicator| indicator.incoming_transfer,
+            );
+            self.write_heat_map_yearly_currency_(
+                &mut sheet,
+                "Incoming Transfert By Year",
+                row + 2,
+                heat_map,
+                &self.portfolio.currency.name,
+            );
         }
 
         self.add_sheet(sheet);
@@ -527,16 +546,21 @@ impl<'a> OdsOutput<'a> {
     fn write_heat_map(&mut self) {
         let mut sheet = Sheet::new("Heat Map");
 
-        let heat_map =
-            HeatMap::from_portfolios(self.indicators, HeatMapPeriod::Monthly, |indicator| {
-                indicator.pnl_percent
-            });
+        let heat_map = HeatMap::from_portfolios(
+            self.indicators,
+            HeatMapPeriod::Monthly,
+            HeatMapComputeMode::Delta,
+            |indicator| indicator.pnl_percent,
+        );
         let mut row = self.write_heat_map_monthly_(&mut sheet, "Portfolio Monthly", 0, heat_map);
-        let heat_map =
-            HeatMap::from_portfolios(self.indicators, HeatMapPeriod::Yearly, |indicator| {
-                indicator.pnl_percent
-            });
-        row = self.write_heat_map_yearly_(&mut sheet, "Portfolio Yearly", row + 1, heat_map);
+        let heat_map = HeatMap::from_portfolios(
+            self.indicators,
+            HeatMapPeriod::Yearly,
+            HeatMapComputeMode::Delta,
+            |indicator| indicator.pnl_percent,
+        );
+        row =
+            self.write_heat_map_yearly_percent_(&mut sheet, "Portfolio Yearly", row + 1, heat_map);
 
         for instrument_name in self.portfolio.get_instrument_name_list() {
             for position_index in self.indicators.get_position_index_list(instrument_name) {
@@ -547,6 +571,7 @@ impl<'a> OdsOutput<'a> {
                 let heat_map = HeatMap::from_positions(
                     &position_indicators,
                     HeatMapPeriod::Monthly,
+                    HeatMapComputeMode::Delta,
                     |indicator| indicator.pnl_percent,
                 );
                 row = self.write_heat_map_monthly_(
@@ -559,9 +584,10 @@ impl<'a> OdsOutput<'a> {
                 let heat_map = HeatMap::from_positions(
                     &position_indicators,
                     HeatMapPeriod::Yearly,
+                    HeatMapComputeMode::Delta,
                     |indicator| indicator.pnl_percent,
                 );
-                row = self.write_heat_map_yearly_(
+                row = self.write_heat_map_yearly_percent_(
                     &mut sheet,
                     &format!("Portfolio Yearly {} / {}", instrument_name, position_index),
                     row + 1,
@@ -685,7 +711,7 @@ impl<'a> OdsOutput<'a> {
         row
     }
 
-    fn write_heat_map_yearly_(
+    fn write_heat_map_yearly_percent_(
         &mut self,
         sheet: &mut Sheet,
         name: &str,
@@ -696,6 +722,28 @@ impl<'a> OdsOutput<'a> {
         for (date, value) in heat_map.data {
             sheet.set_value(row, 1, date.year());
             sheet.set_value(row, 2, percent!(value));
+            row += 1;
+        }
+        row
+    }
+
+    fn write_heat_map_yearly_currency_(
+        &mut self,
+        sheet: &mut Sheet,
+        name: &str,
+        mut row: u32,
+        heat_map: HeatMap,
+        currency_name: &str,
+    ) -> u32 {
+        let currency_style = self.get_currency_style(currency_name);
+        sheet.set_value(row, 0, Value::Text(name.to_string()));
+        for (date, value) in heat_map.data {
+            sheet.set_value(row, 1, date.year());
+            if let Some(style) = &currency_style {
+                sheet.set_styled_value(row, 2, currency!(currency_name, value), style);
+            } else {
+                sheet.set_value(row, 2, currency!(currency_name, value));
+            }
             row += 1;
         }
         row
