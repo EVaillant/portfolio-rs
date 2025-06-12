@@ -20,7 +20,7 @@ pub fn twr(begin_valuation: f64, end_valuation: f64, cashflow: f64, previous_twr
     (previous_twr + 1.0) * (period_twr + 1.0) - 1.0
 }
 
-pub fn volalility(values: &[f64]) -> f64 {
+pub fn volatility(values: &[f64]) -> f64 {
     if !values.is_empty() {
         let size = values.len() as f64;
         let avg = values.iter().sum::<f64>() / size;
@@ -52,7 +52,7 @@ where
         .map(get_value)
         .collect::<Vec<_>>();
     values.push(current_value);
-    volalility(&values)
+    volatility(&values)
 }
 
 #[cfg(test)]
@@ -87,20 +87,20 @@ mod tests {
     }
 
     #[test]
-    fn volalility() {
+    fn volatility() {
         {
-            let result = super::volalility(&[]);
+            let result = super::volatility(&[]);
             assert_float_absolute_eq!(result, 0.0, 1e-7);
         }
 
         {
-            let result = super::volalility(&[1.0, 5.0, 9.0, 8.0, 6.0]);
+            let result = super::volatility(&[1.0, 5.0, 9.0, 8.0, 6.0]);
             assert_float_absolute_eq!(result, 2.785677655436824, 1e-7);
         }
     }
 
     #[test]
-    fn volalility_from() {
+    fn volatility_from() {
         let result = super::volatility_from(
             make_date_(2025, 6, 10),
             Duration::days(5),
