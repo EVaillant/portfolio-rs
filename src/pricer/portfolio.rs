@@ -1,6 +1,6 @@
 use super::position::PositionIndicator;
 use super::primitive;
-use crate::alias::Date;
+use crate::alias::{Date, Duration};
 use crate::portfolio::{CashVariationSource, Portfolio};
 use std::iter::Sum;
 use std::ops::Add;
@@ -78,9 +78,11 @@ pub struct PortfolioIndicator {
     pub fees_percent: f64,
     pub pnl_currency: f64,
     pub pnl_percent: f64,
+    pub pnl_volatility_3m: f64,
     pub twr: f64,
     pub open_pnl_currency: f64,
     pub open_pnl_percent: f64,
+    pub open_pnl_volatility_3m: f64,
     pub open_twr: f64,
     pub earning: f64,
     pub open_earning: f64,
@@ -145,6 +147,24 @@ impl PortfolioIndicator {
         let (pnl_currency, pnl_percent) = primitive::pnl(valuation, nominal);
         let (open_pnl_currency, open_pnl_percent) = primitive::pnl(open_valuation, open_nominal);
 
+        let pnl_volatility_3m = primitive::volatility_from(
+            date,
+            Duration::days(90),
+            previous_indicators,
+            pnl_percent,
+            |item| item.pnl_percent,
+            |item| item.date,
+        );
+
+        let open_pnl_volatility_3m = primitive::volatility_from(
+            date,
+            Duration::days(90),
+            previous_indicators,
+            open_pnl_percent,
+            |item| item.open_pnl_percent,
+            |item| item.date,
+        );
+
         let (previous_twr, begin_valuation, delta_cashflow) =
             if let Some(previous_indicator) = previous_indicators.last() {
                 (
@@ -188,8 +208,10 @@ impl PortfolioIndicator {
             fees_percent,
             pnl_currency,
             pnl_percent,
+            pnl_volatility_3m,
             open_pnl_currency,
             open_pnl_percent,
+            open_pnl_volatility_3m,
             twr,
             open_twr,
             earning: accumulator.earning,
@@ -256,6 +278,7 @@ mod tests {
             fees,
             pnl_currency: 0.0,
             pnl_percent: 0.0,
+            pnl_volatility_3m: 0.0,
             twr: 0.0,
             earning,
             earning_latent,

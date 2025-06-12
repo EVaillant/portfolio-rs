@@ -1,5 +1,5 @@
 use super::primitive;
-use crate::alias::Date;
+use crate::alias::{Date, Duration};
 use crate::historical::DataFrame;
 use crate::marketdata::Instrument;
 use crate::portfolio::{Position, Way};
@@ -25,6 +25,7 @@ pub struct PositionIndicator {
     pub fees: f64,
     pub pnl_currency: f64,
     pub pnl_percent: f64,
+    pub pnl_volatility_3m: f64,
     pub twr: f64,
     pub earning: f64,
     pub earning_latent: f64,
@@ -54,6 +55,15 @@ impl PositionIndicator {
 
         let cashflow = Self::compute_cashflow_(position, date);
         let (pnl_currency, pnl_percent) = primitive::pnl(valuation, nominal);
+
+        let pnl_volatility_3m = primitive::volatility_from(
+            date,
+            Duration::days(90),
+            previous_indicators,
+            pnl_percent,
+            |item| item.pnl_percent,
+            |item| item.date,
+        );
 
         let (previous_twr, begin_valuation, delta_cashflow) =
             if let Some(previous_indicator) = previous_indicators.last() {
@@ -89,6 +99,7 @@ impl PositionIndicator {
             fees,
             pnl_currency,
             pnl_percent,
+            pnl_volatility_3m,
             twr,
             earning,
             earning_latent,

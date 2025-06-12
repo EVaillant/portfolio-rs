@@ -147,6 +147,9 @@ impl<'a> OdsOutput<'a> {
                 .add("P&L(%)", |position: &&PositionIndicator| {
                     percent!(position.pnl_percent)
                 })
+                .add("P&L Volatility (3M)", |position: &&PositionIndicator| {
+                    percent!(position.pnl_volatility_3m)
+                })
                 .add_optional("Distribution", |position: &&PositionIndicator| {
                     intrument_indicators
                         .iter()
@@ -177,6 +180,9 @@ impl<'a> OdsOutput<'a> {
                 .add("", |portfolio: &&PortfolioIndicator| {
                     percent!(portfolio.open_pnl_percent)
                 })
+                .add("", |portfolio: &&PortfolioIndicator| {
+                    percent!(portfolio.open_pnl_volatility_3m)
+                })
                 .write_line(&mut sheet, self, row + 1, 6, &portfolio);
             row += 3;
 
@@ -194,6 +200,9 @@ impl<'a> OdsOutput<'a> {
                 .add("P&L", |portfolio: &&PortfolioIndicator| {
                     currency!(&self.portfolio.currency.name, portfolio.pnl_currency)
                 })
+                .add("P&L Volatility (3M)", |portfolio: &&PortfolioIndicator| {
+                    percent!(portfolio.pnl_volatility_3m)
+                })
                 .add("TWR", |portfolio: &&PortfolioIndicator| {
                     percent!(portfolio.twr)
                 })
@@ -210,7 +219,7 @@ impl<'a> OdsOutput<'a> {
                     currency!(&self.portfolio.currency.name, portfolio.outcoming_transfer)
                 })
                 .write_reversed(&mut sheet, self, row, 1, std::iter::once(portfolio));
-            row += 10;
+            row += 11;
 
             let close_position_row = self.write_close_positions_(&mut sheet, row, 1, Some(5));
             if close_position_row != 0 {
@@ -416,6 +425,12 @@ impl<'a> OdsOutput<'a> {
             .add("P&L(%)", |portfolio_indicator: &&PortfolioIndicator| {
                 percent!(portfolio_indicator.pnl_percent)
             })
+            .add(
+                "P&L Volatility (3M)",
+                |portfolio_indicator: &&PortfolioIndicator| {
+                    percent!(portfolio_indicator.pnl_volatility_3m)
+                },
+            )
             .add("TWR", |portfolio_indicator: &&PortfolioIndicator| {
                 percent!(portfolio_indicator.twr)
             })
@@ -510,6 +525,12 @@ impl<'a> OdsOutput<'a> {
             .add("P&L(%)", |position_indicator: &&&PositionIndicator| {
                 percent!(position_indicator.pnl_percent)
             })
+            .add(
+                "P&L Volatility (3M)",
+                |position_indicator: &&&PositionIndicator| {
+                    percent!(position_indicator.pnl_volatility_3m)
+                },
+            )
             .add("TWR", |position_indicator: &&&PositionIndicator| {
                 percent!(position_indicator.twr)
             })
