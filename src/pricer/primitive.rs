@@ -55,6 +55,35 @@ where
     volatility(&values)
 }
 
+pub fn xirr(cash_flows: &[(Date, f64)], guess: f64) -> Option<f64> {
+    let max_iterations = 100;
+    let precision = 1e-7;
+    let mut rate = guess;
+    let d0 = cash_flows.first()?.0;
+
+    for _ in 0..max_iterations {
+        let mut f = 0.0;
+        let mut df = 0.0;
+
+        for cf in cash_flows {
+            let days = (cf.0 - d0).num_days() as f64;
+            let frac = days / 365.0;
+            let denom = (1.0 + rate).powf(frac);
+            f += cf.1 / denom;
+            df += -cf.1 * frac / denom / (1.0 + rate);
+        }
+
+        let new_rate = rate - f / df;
+        if (new_rate - rate).abs() < precision {
+            return Some(new_rate);
+        }
+
+        rate = new_rate;
+    }
+
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use crate::alias::{Date, Duration};
@@ -116,5 +145,39 @@ mod tests {
             |item| item.0,
         );
         assert_float_absolute_eq!(result, 2.9474565306379, 1e-7);
+    }
+
+    #[test]
+    fn xirr_01() {
+        let flows = [
+            (make_date_(2023, 1, 1), -1000.0),
+            (make_date_(2023, 12, 31), 500.0),
+            (make_date_(2024, 12, 31), 600.0),
+        ];
+
+        let result = super::xirr(&flows, 0.1).unwrap();
+        assert_float_absolute_eq!(result, 0.06399657333732633, 1e-7);
+    }
+
+    #[test]
+    fn xirr_02() {
+        let flows = [
+            (make_date_(2023, 1, 1), 0.0),
+            (make_date_(2023, 12, 31), 0.0),
+        ];
+
+        assert!(super::xirr(&flows, 0.1).is_none());
+    }
+
+    #[test]
+    fn xirr_03() {
+        let flows = [];
+        assert!(super::xirr(&flows, 0.1).is_none());
+    }
+
+    #[test]
+    fn xirr_04() {
+        let flows = [(make_date_(2023, 1, 1), -1000.0)];
+        assert!(super::xirr(&flows, 0.1).is_none());
     }
 }
