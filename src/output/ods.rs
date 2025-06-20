@@ -362,6 +362,9 @@ impl<'a> OdsOutput<'a> {
             })
             .add("TWR", |position: &&ClosePositionIndicator| {
                 percent!(position.twr)
+            })
+            .add_optional("IRR", |position: &&ClosePositionIndicator| {
+                position.irr.map(|value| percent!(value))
             });
 
         if let Some(size) = limit_size {
