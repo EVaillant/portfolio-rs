@@ -67,3 +67,58 @@ impl Default for Cache {
         Cache::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::marketdata::{Currency, Instrument, Market};
+
+    #[test]
+    fn cache() {
+        let mut cache = Cache::default();
+
+        // empty
+        let result = cache.get_currency_by(|item| item.name == "EUR");
+        assert!(result.is_none());
+
+        let result = cache.get_market_by(|item| item.name == "EPA");
+        assert!(result.is_none());
+
+        let result = cache.get_instrument_by(|item| item.name == "ESE");
+        assert!(result.is_none());
+
+        // add item
+        cache.add_currency(Currency {
+            name: "EUR".to_string(),
+            ..Default::default()
+        });
+        cache.add_market(Market {
+            name: "EPA".to_string(),
+            ..Default::default()
+        });
+        cache.add_instrument(Instrument {
+            name: "ESE".to_string(),
+            ..Default::default()
+        });
+
+        // find and found
+        let result = cache.get_currency_by(|item| item.name == "EUR");
+        assert!(result.is_some());
+
+        let result = cache.get_market_by(|item| item.name == "EPA");
+        assert!(result.is_some());
+
+        let result = cache.get_instrument_by(|item| item.name == "ESE");
+        assert!(result.is_some());
+
+        // not found
+        let result = cache.get_currency_by(|item| item.name == "XXX");
+        assert!(result.is_none());
+
+        let result = cache.get_market_by(|item| item.name == "XXX");
+        assert!(result.is_none());
+
+        let result = cache.get_instrument_by(|item| item.name == "XXX");
+        assert!(result.is_none());
+    }
+}

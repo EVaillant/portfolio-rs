@@ -49,7 +49,7 @@ impl Referential {
         match result {
             Some(value) => Ok(value),
             None => {
-                let filename = self.build_marketdata_filename("market", name)?;
+                let filename = self.build_marketdata_filename_("market", name)?;
                 let file = File::open(filename)?;
                 let reader = BufReader::new(file);
                 let market = serialize::from_reader(reader, self)?;
@@ -63,7 +63,7 @@ impl Referential {
         match result {
             Some(value) => Ok(value),
             None => {
-                let filename = self.build_marketdata_filename("currency", name)?;
+                let filename = self.build_marketdata_filename_("currency", name)?;
                 let file = File::open(filename)?;
                 let reader = BufReader::new(file);
                 let currency = serialize::from_reader(reader, self)?;
@@ -79,7 +79,7 @@ impl Referential {
         match result {
             Some(value) => Ok(value),
             None => {
-                let filename = self.build_marketdata_filename("instrument", name)?;
+                let filename = self.build_marketdata_filename_("instrument", name)?;
                 let file = File::open(filename)?;
                 let reader = BufReader::new(file);
                 let instrument = serialize::from_reader(reader, self)?;
@@ -94,7 +94,7 @@ impl Referential {
         serialize::from_reader(reader, self)
     }
 
-    fn build_marketdata_filename(&self, kind: &str, name: &str) -> Result<PathBuf, Error> {
+    fn build_marketdata_filename_(&self, kind: &str, name: &str) -> Result<PathBuf, Error> {
         let mut filename = PathBuf::new();
         filename.push(&self.marketdata_dir);
         filename.push(kind);
@@ -107,5 +107,59 @@ impl Referential {
             )));
         }
         Ok(filename)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn currency_by_name() {
+        let mut referential = Referential::new(concat!(env!("CARGO_MANIFEST_DIR"), "/data"));
+        let result = referential.get_currency_by_name("EUR");
+        assert!(result.is_ok());
+        let result = result.unwrap();
+        assert!(result.name == "EUR");
+        assert!(result.parent_currency.is_none());
+
+        let result = referential.get_currency_by_name("XXX");
+        assert!(result.is_err());
+
+        let result = referential.get_currency_by_name("EUR");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn market_by_name() {
+        let mut referential = Referential::new(concat!(env!("CARGO_MANIFEST_DIR"), "/data"));
+        let result = referential.get_market_by_name("EPA");
+        assert!(result.is_ok());
+        let result = result.unwrap();
+        assert!(result.name == "EPA");
+        assert!(result.description == "Euronext Paris");
+
+        let result = referential.get_market_by_name("XXX");
+        assert!(result.is_err());
+
+        let result = referential.get_market_by_name("EPA");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn instrument_by_name() {
+        let mut referential = Referential::new(concat!(env!("CARGO_MANIFEST_DIR"), "/data"));
+        let result = referential.get_instrument_by_name("ESE");
+        assert!(result.is_ok());
+        let result = result.unwrap();
+        assert!(result.name == "ESE");
+        assert!(result.isin == "FR0011550185");
+        assert!(result.description == "BNP Paribas Easy S&P 500 UCITS ETF EUR C");
+
+        let result = referential.get_instrument_by_name("XXX");
+        assert!(result.is_err());
+
+        let result = referential.get_instrument_by_name("ESE");
+        assert!(result.is_ok());
     }
 }
