@@ -115,7 +115,6 @@ pub fn xirr(cashflows: &[CashFlow], guess: f64) -> Option<f64> {
         return Some(rate);
     }
 
-    // Newton-Raphson a échoué → essayer la méthode de bissection
     let mut low = -0.9999;
     let mut high = 10.0;
 
@@ -123,7 +122,7 @@ pub fn xirr(cashflows: &[CashFlow], guess: f64) -> Option<f64> {
     let f_high = xnpv(high, cashflows, t0);
 
     if f_low * f_high > 0.0 {
-        return None; // Pas de signe opposé → pas de racine dans l'intervalle
+        return None;
     }
 
     for _ in 0..max_iterations {
