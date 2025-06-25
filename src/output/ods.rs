@@ -150,6 +150,9 @@ impl<'a> OdsOutput<'a> {
                 .add("P&L Volatility (3M)", |position: &&PositionIndicator| {
                     percent!(position.pnl_volatility_3m)
                 })
+                .add_optional("IRR", |position: &&PositionIndicator| {
+                    position.irr.map(|value| percent!(value))
+                })
                 .add_optional("Distribution", |position: &&PositionIndicator| {
                     intrument_indicators
                         .iter()
@@ -536,6 +539,9 @@ impl<'a> OdsOutput<'a> {
             )
             .add("TWR", |position_indicator: &&&PositionIndicator| {
                 percent!(position_indicator.twr)
+            })
+            .add_optional("IRR", |position: &&&PositionIndicator| {
+                position.irr.map(|value| percent!(value))
             })
             .add("Earning", |position_indicator: &&&PositionIndicator| {
                 currency!(

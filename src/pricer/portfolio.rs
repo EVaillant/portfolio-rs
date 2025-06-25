@@ -280,6 +280,7 @@ mod tests {
             pnl_percent: 0.0,
             pnl_volatility_3m: 0.0,
             twr: 0.0,
+            irr: None,
             earning,
             earning_latent,
             is_close: false,

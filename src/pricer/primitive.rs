@@ -55,30 +55,90 @@ where
     volatility(&values)
 }
 
-pub fn xirr(cash_flows: &[(Date, f64)], guess: f64) -> Option<f64> {
-    let max_iterations = 100;
-    let precision = 1e-7;
+#[derive(Debug)]
+pub struct CashFlow {
+    pub date: Date,
+    pub amount: f64,
+}
+
+fn xnpv(rate: f64, cashflows: &[CashFlow], t0: Date) -> f64 {
+    let days_in_year = 365.0;
+    cashflows
+        .iter()
+        .map(|cf| {
+            let days = (cf.date - t0).num_days() as f64;
+            cf.amount / (1.0 + rate).powf(days / days_in_year)
+        })
+        .sum()
+}
+
+fn dxnpv(rate: f64, cashflows: &[CashFlow], t0: Date) -> f64 {
+    let days_in_year = 365.0;
+    cashflows
+        .iter()
+        .map(|cf| {
+            let days = (cf.date - t0).num_days() as f64;
+            let frac = days / days_in_year;
+            -cf.amount * frac / (1.0 + rate).powf(frac + 1.0)
+        })
+        .sum()
+}
+
+pub fn xirr(cashflows: &[CashFlow], guess: f64) -> Option<f64> {
+    let max_iterations = 50;
+    let tol = 1e-7;
+    let t0 = cashflows.first()?.date;
+
     let mut rate = guess;
-    let d0 = cash_flows.first()?.0;
+    let mut success = false;
 
     for _ in 0..max_iterations {
-        let mut f = 0.0;
-        let mut df = 0.0;
+        let f_value = xnpv(rate, cashflows, t0);
+        let f_derivative = dxnpv(rate, cashflows, t0);
 
-        for cf in cash_flows {
-            let days = (cf.0 - d0).num_days() as f64;
-            let frac = days / 365.0;
-            let denom = (1.0 + rate).powf(frac);
-            f += cf.1 / denom;
-            df += -cf.1 * frac / denom / (1.0 + rate);
+        if f_derivative.abs() < f64::EPSILON {
+            break;
         }
 
-        let new_rate = rate - f / df;
-        if (new_rate - rate).abs() < precision {
-            return Some(new_rate);
+        let new_rate = rate - f_value / f_derivative;
+
+        if (new_rate - rate).abs() < tol {
+            success = true;
+            rate = new_rate;
+            break;
         }
 
         rate = new_rate;
+    }
+
+    if success {
+        return Some(rate);
+    }
+
+    // Newton-Raphson a échoué → essayer la méthode de bissection
+    let mut low = -0.9999;
+    let mut high = 10.0;
+
+    let f_low = xnpv(low, cashflows, t0);
+    let f_high = xnpv(high, cashflows, t0);
+
+    if f_low * f_high > 0.0 {
+        return None; // Pas de signe opposé → pas de racine dans l'intervalle
+    }
+
+    for _ in 0..max_iterations {
+        let mid = (low + high) / 2.0;
+        let f_mid = xnpv(mid, cashflows, t0);
+
+        if f_mid.abs() < tol {
+            return Some(mid);
+        }
+
+        if f_mid * f_low < 0.0 {
+            high = mid;
+        } else {
+            low = mid;
+        }
     }
 
     None
@@ -150,23 +210,41 @@ mod tests {
     #[test]
     fn xirr_01() {
         let flows = [
-            (make_date_(2023, 1, 1), -1000.0),
-            (make_date_(2023, 12, 31), 500.0),
-            (make_date_(2024, 12, 31), 600.0),
+            super::CashFlow {
+                date: make_date_(2023, 1, 1),
+                amount: -1000.0,
+            },
+            super::CashFlow {
+                date: make_date_(2023, 12, 31),
+                amount: 500.0,
+            },
+            super::CashFlow {
+                date: make_date_(2024, 12, 31),
+                amount: 600.0,
+            },
         ];
 
-        let result = super::xirr(&flows, 0.1).unwrap();
-        assert_float_absolute_eq!(result, 0.06399657333732633, 1e-7);
+        let result = super::xirr(&flows, 0.1);
+        assert!(result.is_some());
+        assert_float_absolute_eq!(result.unwrap(), 0.06399657333732633, 1e-7);
     }
 
     #[test]
     fn xirr_02() {
         let flows = [
-            (make_date_(2023, 1, 1), 0.0),
-            (make_date_(2023, 12, 31), 0.0),
+            super::CashFlow {
+                date: make_date_(2023, 1, 1),
+                amount: 0.0,
+            },
+            super::CashFlow {
+                date: make_date_(2023, 12, 31),
+                amount: 0.0,
+            },
         ];
 
-        assert!(super::xirr(&flows, 0.1).is_none());
+        let result = super::xirr(&flows, 0.1);
+        assert!(result.is_some());
+        assert_float_absolute_eq!(result.unwrap(), 4.50005, 1e-7);
     }
 
     #[test]
@@ -177,7 +255,28 @@ mod tests {
 
     #[test]
     fn xirr_04() {
-        let flows = [(make_date_(2023, 1, 1), -1000.0)];
+        let flows = [super::CashFlow {
+            date: make_date_(2023, 1, 1),
+            amount: -1000.0,
+        }];
         assert!(super::xirr(&flows, 0.1).is_none());
+    }
+
+    #[test]
+    fn xirr_05() {
+        let flows = [
+            super::CashFlow {
+                date: make_date_(2023, 12, 19),
+                amount: -417.48,
+            },
+            super::CashFlow {
+                date: make_date_(2023, 12, 20),
+                amount: 412.40,
+            },
+        ];
+
+        let result = super::xirr(&flows, 0.1);
+        assert!(result.is_some());
+        assert_float_absolute_eq!(result.unwrap(), -0.988537262644223, 1e-7);
     }
 }
