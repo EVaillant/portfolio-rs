@@ -100,7 +100,7 @@ impl PortfolioIndicator {
         positions: Vec<PositionIndicator>,
         previous_indicators: &[PortfolioIndicator],
     ) -> PortfolioIndicator {
-        debug!("price portfolio at {}", date);
+        debug!("price portfolio at {date}");
 
         let incoming_transfer = portfolio
             .cash

@@ -29,14 +29,13 @@ impl YahooRequester {
                 .get(instrument_position)
                 .ok_or_else(|| {
                     Error::new_historical(format!(
-                        "unable to get quote at instrument_position:{}",
-                        instrument_position
+                        "unable to get quote at instrument_position:{instrument_position}"
                     ))
                 })?;
 
             for (date_position, date) in result.timestamp.as_ref().unwrap().iter().enumerate() {
                 if date.hour() > 8 || date.minute() != 0 || date.second() != 0 {
-                    debug!("skip {} because not a real close", date);
+                    debug!("skip {date} because not a real close");
                     continue;
                 }
                 if quotes.open.is_none()
@@ -53,8 +52,7 @@ impl YahooRequester {
                     .get(date_position)
                     .ok_or_else(|| {
                         Error::new_historical(format!(
-                            "unable to get open at instrument_position:{} date_position:{}",
-                            instrument_position, date_position
+                            "unable to get open at instrument_position:{instrument_position} date_position:{date_position}"
                         ))
                     })?;
                 let close = quotes
@@ -64,8 +62,7 @@ impl YahooRequester {
                     .get(date_position)
                     .ok_or_else(|| {
                         Error::new_historical(format!(
-                            "unable to get close at instrument_position:{} date_position:{}",
-                            instrument_position, date_position
+                            "unable to get close at instrument_position:{instrument_position} date_position:{date_position}"
                         ))
                     })?;
                 let high = quotes
@@ -75,8 +72,7 @@ impl YahooRequester {
                     .get(date_position)
                     .ok_or_else(|| {
                         Error::new_historical(format!(
-                            "unable to get high at instrument_position:{} date_position:{}",
-                            instrument_position, date_position
+                            "unable to get high at instrument_position:{instrument_position} date_position:{date_position}"
                         ))
                     })?;
                 let low = quotes
@@ -86,8 +82,7 @@ impl YahooRequester {
                     .get(date_position)
                     .ok_or_else(|| {
                         Error::new_historical(format!(
-                            "unable to get low at instrument_position:{} date_position:{}",
-                            instrument_position, date_position
+                            "unable to get low at instrument_position:{instrument_position} date_position:{date_position}"
                         ))
                     })?;
                 if open.is_some() && close.is_some() && high.is_some() && low.is_some() {
@@ -99,7 +94,7 @@ impl YahooRequester {
                         low.unwrap(),
                     ));
                 } else {
-                    info!("value not available at {}", date);
+                    info!("value not available at {date}");
                 }
             }
         }
@@ -122,7 +117,7 @@ impl Requester for YahooRequester {
         );
         let end = end
             .checked_add_days(chrono::Days::new(1))
-            .ok_or_else(|| Error::new_historical(format!("unable to compute next day {}", end)))?;
+            .ok_or_else(|| Error::new_historical(format!("unable to compute next day {end}")))?;
 
         let ticker_yahoo = instrument.ticker_yahoo.as_ref().ok_or_else(|| {
             Error::new_historical(format!("missing yahoo ticker on {}", instrument.name))

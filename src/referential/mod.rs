@@ -183,8 +183,7 @@ mod tests {
         let date = date.unwrap();
         assert!(
             date == chrono::NaiveDate::from_ymd_opt(2022, 3, 1).unwrap(),
-            "get_trade_date={}",
-            date
+            "get_trade_date={date}"
         );
     }
 }

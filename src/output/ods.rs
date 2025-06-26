@@ -606,7 +606,7 @@ impl<'a> OdsOutput<'a> {
                 );
                 row = self.write_heat_map_monthly_(
                     &mut sheet,
-                    &format!("Portfolio Monthly {} / {}", instrument_name, position_index),
+                    &format!("Portfolio Monthly {instrument_name} / {position_index}"),
                     row + 1,
                     heat_map,
                 );
@@ -619,7 +619,7 @@ impl<'a> OdsOutput<'a> {
                 );
                 row = self.write_heat_map_yearly_percent_(
                     &mut sheet,
-                    &format!("Portfolio Yearly {} / {}", instrument_name, position_index),
+                    &format!("Portfolio Yearly {instrument_name} / {position_index}"),
                     row + 1,
                     heat_map,
                 );
@@ -844,11 +844,11 @@ impl<'a> OdsOutput<'a> {
     }
 
     fn make_currency_style_name_(currency_name: &str) -> String {
-        format!("currency_style_{}", currency_name)
+        format!("currency_style_{currency_name}")
     }
 
     fn make_date_style_name_(date_format: &str) -> String {
-        format!("date_style_{}", date_format)
+        format!("date_style_{date_format}")
     }
 
     fn get_style_by_name_(&self, name: &str) -> Option<CellStyleRef> {
@@ -890,10 +890,7 @@ impl Output for OdsOutput<'_> {
 
             for instrument_name in self.portfolio.get_instrument_name_list() {
                 for position_index in self.indicators.get_position_index_list(instrument_name) {
-                    debug!(
-                        "write position indicators for {} / {}",
-                        instrument_name, position_index
-                    );
+                    debug!("write position indicators for {instrument_name} / {position_index}");
                     let position_indicators = self
                         .indicators
                         .get_position_indicators(instrument_name, position_index);

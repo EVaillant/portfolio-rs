@@ -101,10 +101,10 @@ impl<'a> CsvOutput<'a> {
         }
 
         for (year, values) in data {
-            let mut line = format!("{}", year);
+            let mut line = format!("{year}");
             for value in values {
                 if let Some(pct) = value {
-                    line += &format!("{}", pct);
+                    line += &format!("{pct}");
                 }
                 line += ";";
             }
