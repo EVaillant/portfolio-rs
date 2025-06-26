@@ -162,4 +162,29 @@ mod tests {
         let result = referential.get_instrument_by_name("ESE");
         assert!(result.is_ok());
     }
+
+    #[test]
+    fn load_portfolio() {
+        let mut referential = Referential::new(concat!(env!("CARGO_MANIFEST_DIR"), "/data"));
+        let result = referential.load_portfolio(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/examples/example_01.json"
+        ));
+        assert!(result.is_ok());
+        let result = result.unwrap();
+        assert!(result.name == "Example 01");
+        assert!(result.currency.name == "EUR");
+        let instruments = result.get_instrument_name_list();
+        assert!(instruments.len() == 2);
+        assert!(instruments.contains(&String::from("ESE")));
+        assert!(instruments.contains(&String::from("RS2K")));
+        let date = result.get_trade_date();
+        assert!(date.is_ok());
+        let date = date.unwrap();
+        assert!(
+            date == chrono::NaiveDate::from_ymd_opt(2022, 3, 1).unwrap(),
+            "get_trade_date={}",
+            date
+        );
+    }
 }

@@ -1,0 +1,63 @@
+{
+  "name": "Example 01",
+  "currency": "EUR",
+  "positions": [
+    {
+      "instrument": "ESE",
+      "trades": [
+        {
+          "date": "2022-03-01T10:00:00-00:00",
+          "way": "buy",
+          "quantity": 17,
+          "price": 20.0,
+          "fees": 1.5
+        },
+        {
+          "date": "2022-04-01T10:00:00-00:00",
+          "way": "buy",
+          "quantity": 17,
+          "price": 21.0,
+          "fees": 1.5
+        },
+        {
+          "date": "2022-05-01T10:00:00-00:00",
+          "way": "buy",
+          "quantity": 17,
+          "price": 19.0,
+          "fees": 1.5
+        },
+        {
+          "date": "2022-06-01T10:00:00-00:00",
+          "way": "sell",
+          "quantity": 51,
+          "price": 23.0,
+          "fees": 1.5
+        }
+      ]
+    },
+    {
+      "instrument": "RS2K",
+      "trades": [
+        {
+          "date": "2022-03-29T10:00:00-00:00",
+          "way": "buy",
+          "quantity": 5,
+          "price": 271.8688,
+          "fees": 5
+        }
+      ]
+    }
+  ],
+  "cash": [
+    {
+      "position": 5000,
+      "date": "2022-02-01T00:00:00-00:00",
+      "source": "payment"
+    },
+    {
+      "position": 4000,
+      "date": "2022-03-29T00:00:00-00:00",
+      "source": "payment"
+    }
+  ]
+}

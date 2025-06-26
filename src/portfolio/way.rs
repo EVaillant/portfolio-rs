@@ -12,3 +12,16 @@ impl std::fmt::Display for Way {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn display() {
+        let buy = Way::Buy;
+        let sell = Way::Sell;
+        assert!(buy.to_string() == "Buy");
+        assert!(sell.to_string() == "Sell");
+    }
+}
