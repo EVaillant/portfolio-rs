@@ -12,7 +12,7 @@ clap = { version = "4.5", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0"
 reqwest = {version = "0.12", features = ["blocking", "cookies"] }
-rusqlite = "0.36.0"
+rusqlite = "0.37.0"
 spreadsheet-ods = "0.25"
 assert_float_eq = "1.1"
 
