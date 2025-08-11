@@ -153,20 +153,20 @@ where
 
         let key = Self::make_cache_key(instrument);
         let mut cache_item = self.cache.get_mut(&key);
-        if cache_item.is_none() {
-            if let Some((db_begin, db_end, db_result)) = self.persistence.load(instrument)? {
-                info!(
-                    "historic data for {} from persistence found begin:{} end:{} nb_record:{}",
-                    instrument.name,
-                    db_begin.format("%Y-%m-%d"),
-                    db_end.format("%Y-%m-%d"),
-                    db_result.len()
-                );
+        if cache_item.is_none()
+            && let Some((db_begin, db_end, db_result)) = self.persistence.load(instrument)?
+        {
+            info!(
+                "historic data for {} from persistence found begin:{} end:{} nb_record:{}",
+                instrument.name,
+                db_begin.format("%Y-%m-%d"),
+                db_end.format("%Y-%m-%d"),
+                db_result.len()
+            );
 
-                let item = CacheInstrument::new(db_begin, db_end, db_result);
-                self.cache.insert(key.clone(), item);
-                cache_item = self.cache.get_mut(&key);
-            }
+            let item = CacheInstrument::new(db_begin, db_end, db_result);
+            self.cache.insert(key.clone(), item);
+            cache_item = self.cache.get_mut(&key);
         }
 
         let mut request_begin = begin;
