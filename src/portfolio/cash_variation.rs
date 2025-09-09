@@ -3,6 +3,8 @@ use crate::alias::DateTime;
 #[derive(Debug, PartialEq)]
 pub enum CashVariationSource {
     Payment,
+    MarketRegulatory,
+    Synchronize,
 }
 
 #[derive(Debug)]

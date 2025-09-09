@@ -124,6 +124,15 @@ impl PortfolioIndicator {
             .map(|variation| variation.position)
             .sum::<f64>();
 
+        let other_transfer = portfolio
+            .cash
+            .iter()
+            .filter(|variation| {
+                variation.date.date() <= date && variation.source != CashVariationSource::Payment
+            })
+            .map(|variation| variation.position)
+            .sum::<f64>();
+
         let accumulator = positions
             .iter()
             .map(PositionAccumulator::from_position)
@@ -134,7 +143,7 @@ impl PortfolioIndicator {
             .map(PositionAccumulator::from_open_position)
             .sum::<PositionAccumulator>();
 
-        let cash = outcoming_transfer + incoming_transfer + accumulator.earning;
+        let cash = outcoming_transfer + incoming_transfer + other_transfer + accumulator.earning;
         let nominal = cash + accumulator.nominal;
         let valuation = cash + accumulator.valuation;
         let fees_percent = if valuation + accumulator.fees == 0.0 {
