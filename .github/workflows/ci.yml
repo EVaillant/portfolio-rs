@@ -90,7 +90,7 @@ jobs:
 
       - name: Run cargo clippy
         run: |
-          rustup component add clippy
+          rustup component add rustfmt
           cargo fmt --all -- --check
 
   coverage:
