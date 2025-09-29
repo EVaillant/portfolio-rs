@@ -67,7 +67,9 @@ jobs:
           sudo apt-get install libsqlite3-dev
 
       - name: Run cargo clippy
-        run: cargo clippy --workspace --all-targets --verbose -- -A dead-code
+        run: |
+          rustup component add clippy
+          cargo clippy --workspace --all-targets --verbose -- -A dead-code
 
   rustfmt:
     name: Verify code formatting
@@ -87,7 +89,9 @@ jobs:
           sudo apt-get install libsqlite3-dev
 
       - name: Run cargo clippy
-        run: cargo fmt --all -- --check
+        run: |
+          rustup component add clippy
+          cargo fmt --all -- --check
 
   coverage:
     name: Coverage 
