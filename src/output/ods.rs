@@ -10,7 +10,7 @@ use crate::pricer::{
     RegionIndicator, RegionIndicatorInstrument,
 };
 use chrono::{Datelike, NaiveDateTime, NaiveTime};
-use log::{debug, error};
+use log::debug;
 use spreadsheet_ods::format::{FormatNumberStyle, ValueFormatTrait};
 use spreadsheet_ods::{
     CellStyleRef, Sheet, Value, ValueFormatCurrency, ValueFormatDateTime, ValueFormatRef, WorkBook,
@@ -132,7 +132,7 @@ impl<'a> OdsOutput<'a> {
         Ok(())
     }
 
-    fn write_dashboard(&mut self) {
+    fn write_dashboard(&mut self) -> Result<(), Error> {
         let mut sheet = self.make_sheet("Dashboard");
 
         if let Some(portfolio) = self.indicators.portfolios.last() {
@@ -277,7 +277,7 @@ impl<'a> OdsOutput<'a> {
                 HeatMapComputeMode::Delta,
                 |indicator| indicator.pnl_percent,
             );
-            row = self.write_heat_map_monthly_(&mut sheet, "P&L By Month", row + 1, heat_map);
+            row = self.write_heat_map_monthly_(&mut sheet, "P&L By Month", row + 1, heat_map)?;
 
             let heat_map = HeatMap::from_portfolios(
                 self.indicators,
@@ -285,7 +285,8 @@ impl<'a> OdsOutput<'a> {
                 HeatMapComputeMode::Delta,
                 |indicator| indicator.pnl_percent,
             );
-            row = self.write_heat_map_yearly_percent_(&mut sheet, "P&L By Year", row + 2, heat_map);
+            row =
+                self.write_heat_map_yearly_percent_(&mut sheet, "P&L By Year", row + 2, heat_map)?;
 
             let heat_map = HeatMap::from_portfolios(
                 self.indicators,
@@ -299,10 +300,11 @@ impl<'a> OdsOutput<'a> {
                 row + 2,
                 heat_map,
                 &self.portfolio.currency.name,
-            );
+            )?;
         }
 
         self.add_sheet(sheet);
+        Ok(())
     }
 
     fn write_trades(&mut self) {
@@ -606,7 +608,7 @@ impl<'a> OdsOutput<'a> {
         }
     }
 
-    fn write_heat_map(&mut self) {
+    fn write_heat_map(&mut self) -> Result<(), Error> {
         let mut sheet = self.make_sheet("Heat Map");
 
         let heat_map = HeatMap::from_portfolios(
@@ -615,7 +617,7 @@ impl<'a> OdsOutput<'a> {
             HeatMapComputeMode::Delta,
             |indicator| indicator.pnl_percent,
         );
-        let mut row = self.write_heat_map_monthly_(&mut sheet, "Portfolio Monthly", 0, heat_map);
+        let mut row = self.write_heat_map_monthly_(&mut sheet, "Portfolio Monthly", 0, heat_map)?;
         let heat_map = HeatMap::from_portfolios(
             self.indicators,
             HeatMapPeriod::Yearly,
@@ -623,7 +625,7 @@ impl<'a> OdsOutput<'a> {
             |indicator| indicator.pnl_percent,
         );
         row =
-            self.write_heat_map_yearly_percent_(&mut sheet, "Portfolio Yearly", row + 1, heat_map);
+            self.write_heat_map_yearly_percent_(&mut sheet, "Portfolio Yearly", row + 1, heat_map)?;
 
         for instrument_name in self.portfolio.get_instrument_name_list() {
             for position_index in self.indicators.get_position_index_list(instrument_name) {
@@ -642,7 +644,7 @@ impl<'a> OdsOutput<'a> {
                     &format!("Portfolio Monthly {instrument_name} / {position_index}"),
                     row + 1,
                     heat_map,
-                );
+                )?;
 
                 let heat_map = HeatMap::from_positions(
                     &position_indicators,
@@ -655,11 +657,12 @@ impl<'a> OdsOutput<'a> {
                     &format!("Portfolio Yearly {instrument_name} / {position_index}"),
                     row + 1,
                     heat_map,
-                );
+                )?;
             }
         }
 
         self.add_sheet(sheet);
+        Ok(())
     }
 
     fn write_distribution(&mut self) {
@@ -743,7 +746,7 @@ impl<'a> OdsOutput<'a> {
         name: &str,
         mut row: u32,
         heat_map: HeatMap,
-    ) -> u32 {
+    ) -> Result<u32, Error> {
         sheet.set_value(row, 0, Value::Text(name.to_string()));
         for (i, header_name) in [
             "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct,", "Nov", "Dec",
@@ -763,21 +766,21 @@ impl<'a> OdsOutput<'a> {
             row[date.month0() as usize] = Some(value);
         }
 
-        if let Some(style) = self.get_date_style("YYYY") {
-            for (date, values) in data {
-                sheet.set_styled_value(row, 1, create_value_from_date(date), &style);
-                for (pos, value) in values.into_iter().enumerate() {
-                    if let Some(pct) = value {
-                        sheet.set_value(row, 2 + pos as u32, percent!(pct));
-                    }
+        let style = self
+            .get_date_style("YYYY")
+            .ok_or_else(|| Error::new_output("missing date format YYYY"))?;
+
+        for (date, values) in data {
+            sheet.set_styled_value(row, 1, create_value_from_date(date), &style);
+            for (pos, value) in values.into_iter().enumerate() {
+                if let Some(pct) = value {
+                    sheet.set_value(row, 2 + pos as u32, percent!(pct));
                 }
-                row += 1;
             }
-        } else {
-            error!("missing date format YYYY");
+            row += 1;
         }
 
-        row
+        Ok(row)
     }
 
     fn write_heat_map_yearly_percent_(
@@ -786,18 +789,19 @@ impl<'a> OdsOutput<'a> {
         name: &str,
         mut row: u32,
         heat_map: HeatMap,
-    ) -> u32 {
-        if let Some(style) = self.get_date_style("YYYY") {
-            sheet.set_value(row, 0, Value::Text(name.to_string()));
-            for (date, value) in heat_map.data {
-                sheet.set_styled_value(row, 1, create_value_from_date(date), &style);
-                sheet.set_value(row, 2, percent!(value));
-                row += 1;
-            }
-        } else {
-            error!("missing date format YYYY");
+    ) -> Result<u32, Error> {
+        let style = self
+            .get_date_style("YYYY")
+            .ok_or_else(|| Error::new_output("missing date format YYYY"))?;
+
+        sheet.set_value(row, 0, Value::Text(name.to_string()));
+        for (date, value) in heat_map.data {
+            sheet.set_styled_value(row, 1, create_value_from_date(date), &style);
+            sheet.set_value(row, 2, percent!(value));
+            row += 1;
         }
-        row
+
+        Ok(row)
     }
 
     fn write_heat_map_yearly_currency_(
@@ -807,23 +811,24 @@ impl<'a> OdsOutput<'a> {
         mut row: u32,
         heat_map: HeatMap,
         currency_name: &str,
-    ) -> u32 {
-        if let Some(style) = self.get_date_style("YYYY") {
-            let currency_style = self.get_currency_style(currency_name);
-            sheet.set_value(row, 0, Value::Text(name.to_string()));
-            for (date, value) in heat_map.data {
-                sheet.set_styled_value(row, 1, create_value_from_date(date), &style);
-                if let Some(style) = &currency_style {
-                    sheet.set_styled_value(row, 2, currency!(currency_name, value), style);
-                } else {
-                    sheet.set_value(row, 2, currency!(currency_name, value));
-                }
-                row += 1;
+    ) -> Result<u32, Error> {
+        let date_style = self
+            .get_date_style("YYYY")
+            .ok_or_else(|| Error::new_output("missing date format YYYY"))?;
+
+        let currency_style = self.get_currency_style(currency_name);
+        sheet.set_value(row, 0, Value::Text(name.to_string()));
+        for (date, value) in heat_map.data {
+            sheet.set_styled_value(row, 1, create_value_from_date(date), &date_style);
+            if let Some(style) = &currency_style {
+                sheet.set_styled_value(row, 2, currency!(currency_name, value), style);
+            } else {
+                sheet.set_value(row, 2, currency!(currency_name, value));
             }
-        } else {
-            error!("missing date format YYYY");
+            row += 1;
         }
-        row
+
+        Ok(row)
     }
 
     fn get_currency_format(&mut self, name: &str) -> Result<ValueFormatRef, Error> {
@@ -921,7 +926,7 @@ impl Output for OdsOutput<'_> {
         self.create_style()?;
 
         debug!("write dashboard");
-        self.write_dashboard();
+        self.write_dashboard()?;
 
         if self.details_sheet {
             debug!("write trades");
@@ -931,7 +936,7 @@ impl Output for OdsOutput<'_> {
             self.write_close_positions();
 
             debug!("write heat map");
-            self.write_heat_map();
+            self.write_heat_map()?;
 
             debug!("write distribution");
             self.write_distribution();
