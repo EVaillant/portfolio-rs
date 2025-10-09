@@ -1,6 +1,7 @@
 use super::Output;
 use crate::error::Error;
 use crate::portfolio::{CashVariationSource, Portfolio, Way};
+use core::panic;
 use log::debug;
 use std::collections::HashSet;
 
@@ -16,6 +17,10 @@ pub struct PortfolioPerformanceOutput<'a> {
 
 impl<'a> PortfolioPerformanceOutput<'a> {
     pub fn new(output_dir: &str, portfolio: &'a Portfolio) -> Self {
+        let path = std::path::Path::new(&output_dir);
+        if !path.is_dir() {
+            panic!("{} must be a directory", output_dir);
+        }
         Self {
             output_dir: output_dir.to_string(),
             portfolio,

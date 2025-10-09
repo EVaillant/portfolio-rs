@@ -27,6 +27,10 @@ impl<'a> CsvOutput<'a> {
         indicators: &'a PortfolioIndicators,
         filter_indicators: &'a Option<Date>,
     ) -> Self {
+        let path = std::path::Path::new(&output_dir);
+        if !path.is_dir() {
+            panic!("{} must be a directory", output_dir);
+        }
         Self {
             output_dir: output_dir.to_string(),
             portfolio,

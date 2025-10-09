@@ -9,8 +9,8 @@ use crate::pricer::{
     PortfolioIndicator, PortfolioIndicators, PositionIndicator, PositionIndicators,
     RegionIndicator, RegionIndicatorInstrument,
 };
-use chrono::Datelike;
-use log::debug;
+use chrono::{Datelike, NaiveDateTime, NaiveTime};
+use log::{debug, error};
 use spreadsheet_ods::format::{FormatNumberStyle, ValueFormatTrait};
 use spreadsheet_ods::{
     CellStyleRef, Sheet, Value, ValueFormatCurrency, ValueFormatDateTime, ValueFormatRef, WorkBook,
@@ -20,6 +20,10 @@ use spreadsheet_ods::{
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
+fn create_value_from_date(date: Date) -> Value {
+    Value::DateTime(NaiveDateTime::new(date, NaiveTime::MIN))
+}
+
 pub struct OdsOutput<'a> {
     output_filename: String,
     work_book: WorkBook,
@@ -27,6 +31,7 @@ pub struct OdsOutput<'a> {
     indicators: &'a PortfolioIndicators,
     filter_indicators: &'a Option<Date>,
     details_sheet: bool,
+    prefix_sheet: bool,
 }
 
 impl TableBuilderStyleResolver for OdsOutput<'_> {
@@ -41,21 +46,48 @@ impl TableBuilderStyleResolver for OdsOutput<'_> {
 
 impl<'a> OdsOutput<'a> {
     pub fn new(
-        output_dir: &str,
+        output: &str,
         portfolio: &'a Portfolio,
         indicators: &'a PortfolioIndicators,
         filter_indicators: &'a Option<Date>,
         details_sheet: bool,
+        force_rewrite: bool,
     ) -> Result<Self, Error> {
-        let output_filename = format!("{}/{}.ods", output_dir, portfolio.name);
+        let path = std::path::Path::new(&output);
+        let prefix_sheet = path.is_file() || !path.exists();
+        let output_filename = if path.is_dir() {
+            format!("{}/{}.ods", output, portfolio.name)
+        } else if prefix_sheet {
+            output.to_string()
+        } else {
+            panic!("{} must be a directory or a file", output);
+        };
+
+        let path = std::path::Path::new(&output_filename);
+        let work_book = if path.exists() && !force_rewrite {
+            spreadsheet_ods::read_ods(path)?
+        } else {
+            WorkBook::new_empty()
+        };
+
         Ok(Self {
             output_filename,
-            work_book: WorkBook::new_empty(),
+            work_book,
             portfolio,
             indicators,
             filter_indicators,
             details_sheet,
+            prefix_sheet,
         })
+    }
+
+    fn make_sheet<N: Into<String>>(&self, name: N) -> Sheet {
+        let sheet_name = if self.prefix_sheet {
+            format!("{} - {}", self.portfolio.name, name.into())
+        } else {
+            name.into()
+        };
+        Sheet::new(sheet_name)
     }
 
     fn add_sheet(&mut self, sheet: Sheet) {
@@ -86,6 +118,7 @@ impl<'a> OdsOutput<'a> {
     }
 
     fn create_style(&mut self) -> Result<(), Error> {
+        self.create_date_style("YYYY")?;
         self.create_date_style("DD/MM/YYYY")?;
         self.create_currency_style(&self.portfolio.currency.name)?;
         for instrument in self
@@ -99,8 +132,8 @@ impl<'a> OdsOutput<'a> {
         Ok(())
     }
 
-    fn write_summary(&mut self) {
-        let mut sheet = Sheet::new("Summary");
+    fn write_dashboard(&mut self) {
+        let mut sheet = self.make_sheet("Dashboard");
 
         if let Some(portfolio) = self.indicators.portfolios.last() {
             let intrument_indicators = InstrumentIndicator::from_portfolio(portfolio);
@@ -319,13 +352,13 @@ impl<'a> OdsOutput<'a> {
                 currency!(&instrument.currency.name, trade.fees)
             });
 
-        let mut sheet = Sheet::new("Trades");
+        let mut sheet = self.make_sheet("Trades");
         table.write(&mut sheet, self, 0, 0, inputs);
         self.add_sheet(sheet);
     }
 
     fn write_close_positions(&mut self) {
-        let mut sheet = Sheet::new("Close Position");
+        let mut sheet = self.make_sheet("Close Position");
         if self.write_close_positions_(&mut sheet, 0, 0, None) != 0 {
             self.add_sheet(sheet);
         } else {
@@ -453,7 +486,7 @@ impl<'a> OdsOutput<'a> {
                 },
             );
 
-        let mut sheet = Sheet::new("Indicators");
+        let mut sheet = self.make_sheet("Indicators");
         if table.write(&mut sheet, self, 0, 0, inputs) != 1 {
             self.add_sheet(sheet);
         } else {
@@ -562,7 +595,7 @@ impl<'a> OdsOutput<'a> {
                 Value::Boolean(position_indicator.is_close)
             });
 
-        let mut sheet = Sheet::new(format!(
+        let mut sheet = self.make_sheet(format!(
             "Indicators-{}-{}",
             indicators.instrument_name, indicators.position_index
         ));
@@ -574,7 +607,7 @@ impl<'a> OdsOutput<'a> {
     }
 
     fn write_heat_map(&mut self) {
-        let mut sheet = Sheet::new("Heat Map");
+        let mut sheet = self.make_sheet("Heat Map");
 
         let heat_map = HeatMap::from_portfolios(
             self.indicators,
@@ -630,7 +663,7 @@ impl<'a> OdsOutput<'a> {
     }
 
     fn write_distribution(&mut self) {
-        let mut sheet = Sheet::new("Distribution");
+        let mut sheet = self.make_sheet("Distribution");
         if let Some(portfolio) = self.indicators.portfolios.last() {
             let region_indicators = RegionIndicator::from_portfolio(portfolio);
             let mut row =
@@ -722,20 +755,26 @@ impl<'a> OdsOutput<'a> {
         }
         row += 1;
 
-        let mut data: BTreeMap<i32, [Option<f64>; 12]> = Default::default();
+        let mut data: BTreeMap<Date, [Option<f64>; 12]> = Default::default();
         for (date, value) in heat_map.data {
-            let row = data.entry(date.year()).or_default();
+            let row = data
+                .entry(Date::from_ymd_opt(date.year(), 1, 1).unwrap())
+                .or_default();
             row[date.month0() as usize] = Some(value);
         }
 
-        for (year, values) in data {
-            sheet.set_value(row, 1, year);
-            for (pos, value) in values.into_iter().enumerate() {
-                if let Some(pct) = value {
-                    sheet.set_value(row, 2 + pos as u32, percent!(pct));
+        if let Some(style) = self.get_date_style("YYYY") {
+            for (date, values) in data {
+                sheet.set_styled_value(row, 1, create_value_from_date(date), &style);
+                for (pos, value) in values.into_iter().enumerate() {
+                    if let Some(pct) = value {
+                        sheet.set_value(row, 2 + pos as u32, percent!(pct));
+                    }
                 }
+                row += 1;
             }
-            row += 1;
+        } else {
+            error!("missing date format YYYY");
         }
 
         row
@@ -748,11 +787,15 @@ impl<'a> OdsOutput<'a> {
         mut row: u32,
         heat_map: HeatMap,
     ) -> u32 {
-        sheet.set_value(row, 0, Value::Text(name.to_string()));
-        for (date, value) in heat_map.data {
-            sheet.set_value(row, 1, date.year());
-            sheet.set_value(row, 2, percent!(value));
-            row += 1;
+        if let Some(style) = self.get_date_style("YYYY") {
+            sheet.set_value(row, 0, Value::Text(name.to_string()));
+            for (date, value) in heat_map.data {
+                sheet.set_styled_value(row, 1, create_value_from_date(date), &style);
+                sheet.set_value(row, 2, percent!(value));
+                row += 1;
+            }
+        } else {
+            error!("missing date format YYYY");
         }
         row
     }
@@ -765,16 +808,20 @@ impl<'a> OdsOutput<'a> {
         heat_map: HeatMap,
         currency_name: &str,
     ) -> u32 {
-        let currency_style = self.get_currency_style(currency_name);
-        sheet.set_value(row, 0, Value::Text(name.to_string()));
-        for (date, value) in heat_map.data {
-            sheet.set_value(row, 1, date.year());
-            if let Some(style) = &currency_style {
-                sheet.set_styled_value(row, 2, currency!(currency_name, value), style);
-            } else {
-                sheet.set_value(row, 2, currency!(currency_name, value));
+        if let Some(style) = self.get_date_style("YYYY") {
+            let currency_style = self.get_currency_style(currency_name);
+            sheet.set_value(row, 0, Value::Text(name.to_string()));
+            for (date, value) in heat_map.data {
+                sheet.set_styled_value(row, 1, create_value_from_date(date), &style);
+                if let Some(style) = &currency_style {
+                    sheet.set_styled_value(row, 2, currency!(currency_name, value), style);
+                } else {
+                    sheet.set_value(row, 2, currency!(currency_name, value));
+                }
+                row += 1;
             }
-            row += 1;
+        } else {
+            error!("missing date format YYYY");
         }
         row
     }
@@ -809,6 +856,10 @@ impl<'a> OdsOutput<'a> {
             v.part_text("/").build();
             v.part_month().style(FormatNumberStyle::Long).build();
             v.part_text("/").build();
+            v.part_year().style(FormatNumberStyle::Long).build();
+            return Ok(self.work_book.add_datetime_format(v));
+        } else if name == "YYYY" {
+            let mut v = ValueFormatDateTime::new_named(name);
             v.part_year().style(FormatNumberStyle::Long).build();
             return Ok(self.work_book.add_datetime_format(v));
         }
@@ -869,8 +920,8 @@ impl Output for OdsOutput<'_> {
         debug!("create style");
         self.create_style()?;
 
-        debug!("write summary");
-        self.write_summary();
+        debug!("write dashboard");
+        self.write_dashboard();
 
         if self.details_sheet {
             debug!("write trades");

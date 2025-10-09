@@ -76,9 +76,9 @@ struct Args {
     #[clap(default_value_t = OutputType::Csv, short =  't', long, value_parser)]
     output_type: OutputType,
 
-    /// output dir
+    /// output
     #[clap(short, long, value_parser)]
-    output_dir: String,
+    output: String,
 
     /// spot source
     #[clap(default_value_t = SpotSource::Yahoo, short, long, value_parser)]
@@ -95,6 +95,10 @@ struct Args {
     /// ods details sheet
     #[clap(default_value_t = false, long, value_parser)]
     ods_details_sheet: bool,
+
+    /// ods force rewrite
+    #[clap(default_value_t = false, long, value_parser)]
+    ods_force_rewrite: bool,
 }
 
 fn parse_indicators_filter(arg: &str) -> Result<Date, clap::Error> {
@@ -185,7 +189,7 @@ fn main() -> Result<(), Error> {
         OutputType::Csv => {
             let portfolio_indicators = make_portfolio_indicators(&args, &portfolio)?;
             let mut output = CsvOutput::new(
-                &args.output_dir,
+                &args.output,
                 &portfolio,
                 &portfolio_indicators,
                 &args.indicators_filter,
@@ -195,16 +199,17 @@ fn main() -> Result<(), Error> {
         OutputType::Ods => {
             let portfolio_indicators = make_portfolio_indicators(&args, &portfolio)?;
             let mut output = OdsOutput::new(
-                &args.output_dir,
+                &args.output,
                 &portfolio,
                 &portfolio_indicators,
                 &args.indicators_filter,
                 args.ods_details_sheet,
+                args.ods_force_rewrite,
             )?;
             output.write()?;
         }
         OutputType::PortfolioPerformance => {
-            let mut output = PortfolioPerformanceOutput::new(&args.output_dir, &portfolio);
+            let mut output = PortfolioPerformanceOutput::new(&args.output, &portfolio);
             output.write()?;
         }
     };
