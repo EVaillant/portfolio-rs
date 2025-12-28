@@ -13,7 +13,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1.0"
 reqwest = {version = "0.12", features = ["blocking", "cookies"] }
 rusqlite = "0.37.0"
-spreadsheet-ods = "0.25"
+spreadsheet-ods = "1.0"
 assert_float_eq = "1.1"
 
 [lints.rust]
