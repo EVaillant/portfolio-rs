@@ -4,5 +4,6 @@
   "[rust]": {    
     "editor.defaultFormatter": "rust-lang.rust-analyzer",
     "editor.formatOnSave": true
-  }
+  },
+  "github.copilot.chat.agent.currentEditorContext.enabled": false
 }
