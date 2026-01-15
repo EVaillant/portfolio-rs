@@ -255,6 +255,8 @@ mod tests {
 
         Portfolio {
             name: "PTF".to_string(),
+            incoming_transfer_limit: None,
+            open: make_date_(2025, 1, 1),
             currency,
             positions: Vec::new(),
             cash: Vec::new(),
@@ -272,6 +274,8 @@ mod tests {
 
         Portfolio {
             name: "PTF".to_string(),
+            open: make_date_(2025, 1, 1),
+            incoming_transfer_limit: None,
             currency,
             positions: vec![
                 Position {
@@ -353,6 +357,8 @@ mod tests {
 
         Portfolio {
             name: "PTF".to_string(),
+            incoming_transfer_limit: None,
+            open: make_date_(2025, 1, 1),
             currency,
             positions: vec![
                 Position {

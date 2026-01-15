@@ -1,5 +1,6 @@
 {
   "name": "Example 01",
+  "open" : "2022-03-01",
   "currency": "EUR",
   "positions": [
     {

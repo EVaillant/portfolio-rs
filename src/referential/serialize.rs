@@ -297,12 +297,16 @@ impl Deserialize for Portfolio {
         D: Deserializer,
     {
         let name = deserializer.read("name")?;
+        let incoming_transfer_limit = deserializer.read_option("incoming_transfer_limit")?;
+        let open = deserializer.read("open")?;
         let currency = deserializer.resolv_currency("currency")?;
         let positions = deserializer.read("positions")?;
         let mut cash: Vec<CashVariation> = deserializer.read("cash")?;
         cash.sort_by(|left, right| left.date.cmp(&right.date));
         Ok(Portfolio {
             name,
+            open,
+            incoming_transfer_limit,
             currency,
             positions,
             cash,

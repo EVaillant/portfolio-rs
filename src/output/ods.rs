@@ -224,6 +224,10 @@ impl<'a> OdsOutput<'a> {
 
             sheet.set_value(row, 0, "Porfolio");
             TableBuilder::new()
+                .add("Open", |_: &&PortfolioIndicator| self.portfolio.open)
+                .add("Pricing Date", |portfolio: &&PortfolioIndicator| {
+                    portfolio.date
+                })
                 .add("Cash", |portfolio: &&PortfolioIndicator| {
                     currency!(&self.portfolio.currency.name, portfolio.cash)
                 })
@@ -254,8 +258,21 @@ impl<'a> OdsOutput<'a> {
                 .add("Outcoming Transfert", |portfolio: &&PortfolioIndicator| {
                     currency!(&self.portfolio.currency.name, portfolio.outcoming_transfer)
                 })
+                .add_optional("Incoming Transfert Limit", |_: &&PortfolioIndicator| {
+                    self.portfolio
+                        .incoming_transfer_limit
+                        .map(|value| currency!(&self.portfolio.currency.name, value))
+                })
+                .add_optional(
+                    "Incoming Transfert Limit (%)",
+                    |portfolio: &&PortfolioIndicator| {
+                        self.portfolio
+                            .incoming_transfer_limit
+                            .map(|value| percent!(portfolio.incoming_transfer / value))
+                    },
+                )
                 .write_reversed(&mut sheet, self, row, 1, std::iter::once(portfolio));
-            row += 11;
+            row += 15;
 
             let close_position_row = self.write_close_positions_(&mut sheet, row, 1, Some(5));
             if close_position_row != 0 {
@@ -300,6 +317,7 @@ impl<'a> OdsOutput<'a> {
                 row + 2,
                 heat_map,
                 &self.portfolio.currency.name,
+                self.portfolio.incoming_transfer_limit,
             )?;
         }
 
@@ -811,12 +829,14 @@ impl<'a> OdsOutput<'a> {
         mut row: u32,
         heat_map: HeatMap,
         currency_name: &str,
+        limit: Option<f64>,
     ) -> Result<u32, Error> {
         let date_style = self
             .get_date_style("YYYY")
             .ok_or_else(|| Error::new_output("missing date format YYYY"))?;
 
         let currency_style = self.get_currency_style(currency_name);
+        let mut accumulate = 0.0;
         sheet.set_value(row, 0, Value::Text(name.to_string()));
         for (date, value) in heat_map.data {
             sheet.set_styled_value(row, 1, create_value_from_date(date), &date_style);
@@ -824,6 +844,10 @@ impl<'a> OdsOutput<'a> {
                 sheet.set_styled_value(row, 2, currency!(currency_name, value), style);
             } else {
                 sheet.set_value(row, 2, currency!(currency_name, value));
+            }
+            accumulate += value;
+            if let Some(limit) = limit {
+                sheet.set_value(row, 3, percent!(accumulate / limit));
             }
             row += 1;
         }

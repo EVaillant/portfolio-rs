@@ -305,6 +305,8 @@ mod tests {
 
         let portfolio = Portfolio {
             name: "TEST".to_string(),
+            open: Date::from_ymd_opt(2022, 3, 17).unwrap(),
+            incoming_transfer_limit: None,
             currency: currency.clone(),
             positions: Default::default(),
             cash: vec![CashVariation {

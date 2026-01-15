@@ -17,6 +17,8 @@ use std::rc::Rc;
 #[derive(Debug)]
 pub struct Portfolio {
     pub name: String,
+    pub open: Date,
+    pub incoming_transfer_limit: Option<f64>,
     pub currency: Rc<Currency>,
     pub positions: Vec<Position>,
     pub cash: Vec<CashVariation>,
