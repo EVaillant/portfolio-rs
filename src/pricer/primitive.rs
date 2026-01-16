@@ -1,3 +1,5 @@
+use chrono::Datelike;
+
 use crate::alias::{Date, Duration};
 
 pub fn pnl(valuation: f64, nominal: f64) -> (f64, f64) {
@@ -143,6 +145,17 @@ pub fn xirr(cashflows: &[CashFlow], guess: f64) -> Option<f64> {
     None
 }
 
+pub fn actuarial_rate(begin: &Date, end: &Date, rate: f64) -> f64 {
+    assert!(*end >= *begin);
+    let duration_per_year = if end.month0() > begin.month0() {
+        (end.year() - begin.year()) as f64 + ((end.month0() - begin.month0()) as f64 / 12.0)
+    } else {
+        (end.year() - begin.year() - 1) as f64
+            + ((end.month0() + 12 - begin.month0()) as f64 / 12.0)
+    };
+    (rate + 1.0).powf(1.0 / duration_per_year) - 1.0
+}
+
 #[cfg(test)]
 mod tests {
     use crate::alias::{Date, Duration};
@@ -277,5 +290,32 @@ mod tests {
         let result = super::xirr(&flows, 0.1);
         assert!(result.is_some());
         assert_float_absolute_eq!(result.unwrap(), -0.988537262644223, 1e-7);
+    }
+
+    #[test]
+    fn actuarial_rate() {
+        assert_float_absolute_eq!(
+            super::actuarial_rate(&make_date_(2022, 12, 20), &make_date_(2023, 12, 20), 0.02),
+            0.02,
+            1e-7
+        );
+
+        assert_float_absolute_eq!(
+            super::actuarial_rate(&make_date_(2023, 12, 20), &make_date_(2024, 12, 20), 0.02),
+            0.02,
+            1e-7
+        );
+
+        assert_float_absolute_eq!(
+            super::actuarial_rate(&make_date_(2023, 12, 20), &make_date_(2025, 11, 20), 0.02),
+            0.010385362938022391,
+            1e-7
+        );
+
+        assert_float_absolute_eq!(
+            super::actuarial_rate(&make_date_(2023, 6, 20), &make_date_(2025, 11, 20), 0.02),
+            0.008227854872806084,
+            1e-7
+        );
     }
 }

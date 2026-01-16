@@ -234,8 +234,11 @@ impl<'a> OdsOutput<'a> {
                 .add("Valuation", |portfolio: &&PortfolioIndicator| {
                     currency!(&self.portfolio.currency.name, portfolio.valuation)
                 })
-                .add("P&L(%)", |portfolio: &&PortfolioIndicator| {
+                .add("P&L (%)", |portfolio: &&PortfolioIndicator| {
                     percent!(portfolio.pnl_percent)
+                })
+                .add("P&L Actuarial (%)", |portfolio: &&PortfolioIndicator| {
+                    percent!(portfolio.pnl_actuarial)
                 })
                 .add("P&L", |portfolio: &&PortfolioIndicator| {
                     currency!(&self.portfolio.currency.name, portfolio.pnl_currency)
@@ -272,7 +275,7 @@ impl<'a> OdsOutput<'a> {
                     },
                 )
                 .write_reversed(&mut sheet, self, row, 1, std::iter::once(portfolio));
-            row += 15;
+            row += 16;
 
             let close_position_row = self.write_close_positions_(&mut sheet, row, 1, Some(5));
             if close_position_row != 0 {

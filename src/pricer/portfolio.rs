@@ -79,6 +79,7 @@ pub struct PortfolioIndicator {
     pub pnl_currency: f64,
     pub pnl_percent: f64,
     pub pnl_volatility_3m: f64,
+    pub pnl_actuarial: f64,
     pub twr: f64,
     pub open_pnl_currency: f64,
     pub open_pnl_percent: f64,
@@ -155,6 +156,7 @@ impl PortfolioIndicator {
         let open_valuation = open_accumulator.valuation;
         let (pnl_currency, pnl_percent) = primitive::pnl(valuation, nominal);
         let (open_pnl_currency, open_pnl_percent) = primitive::pnl(open_valuation, open_nominal);
+        let pnl_actuarial = primitive::actuarial_rate(&portfolio.open, &date, pnl_percent);
 
         let pnl_volatility_3m = primitive::volatility_from(
             date,
@@ -217,6 +219,7 @@ impl PortfolioIndicator {
             fees_percent,
             pnl_currency,
             pnl_percent,
+            pnl_actuarial,
             pnl_volatility_3m,
             open_pnl_currency,
             open_pnl_percent,
