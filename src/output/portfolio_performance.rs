@@ -82,8 +82,8 @@ impl<'a> PortfolioPerformanceOutput<'a> {
             .collect::<HashSet<_>>()
         {
             let mut buffer = String::new();
-            if instrument.ticker_yahoo.is_some() {
-                buffer.push_str(instrument.ticker_yahoo.as_ref().unwrap().as_str());
+            if let Some(ticker) = instrument.ticker_yahoo.as_ref() {
+                buffer.push_str(ticker);
             }
             buffer.push(';');
             buffer.push_str(instrument.isin.as_str());
