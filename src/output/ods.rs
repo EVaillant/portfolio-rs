@@ -223,7 +223,8 @@ impl<'a> OdsOutput<'a> {
             row += 3;
 
             sheet.set_value(row, 0, "Porfolio");
-            TableBuilder::new()
+            let mut builder = TableBuilder::new();
+            builder
                 .add("Open", |_: &&PortfolioIndicator| self.portfolio.open)
                 .add("Pricing Date", |portfolio: &&PortfolioIndicator| {
                     portfolio.date
@@ -260,22 +261,23 @@ impl<'a> OdsOutput<'a> {
                 })
                 .add("Outcoming Transfert", |portfolio: &&PortfolioIndicator| {
                     currency!(&self.portfolio.currency.name, portfolio.outcoming_transfer)
-                })
-                .add_optional("Incoming Transfert Limit", |_: &&PortfolioIndicator| {
-                    self.portfolio
-                        .incoming_transfer_limit
-                        .map(|value| currency!(&self.portfolio.currency.name, value))
-                })
-                .add_optional(
-                    "Incoming Transfert Limit (%)",
-                    |portfolio: &&PortfolioIndicator| {
-                        self.portfolio
-                            .incoming_transfer_limit
-                            .map(|value| percent!(portfolio.incoming_transfer / value))
-                    },
-                )
-                .write_reversed(&mut sheet, self, row, 1, std::iter::once(portfolio));
-            row += 16;
+                });
+            if self.portfolio.incoming_transfer_limit.is_some() {
+                builder.add("Incoming Transfert Limit", |_: &&PortfolioIndicator| {
+                    currency!(
+                        &self.portfolio.currency.name,
+                        self.portfolio.incoming_transfer_limit.unwrap()
+                    )
+                });
+
+                builder.add("Incoming Transfert Limit (%)", |_: &&PortfolioIndicator| {
+                    percent!(
+                        portfolio.incoming_transfer
+                            / self.portfolio.incoming_transfer_limit.unwrap()
+                    )
+                });
+            }
+            row += builder.write_reversed(&mut sheet, self, row, 1, std::iter::once(portfolio)) + 1;
 
             let close_position_row = self.write_close_positions_(&mut sheet, row, 1, Some(5));
             if close_position_row != 0 {

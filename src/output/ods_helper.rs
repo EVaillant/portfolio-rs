@@ -99,12 +99,10 @@ impl<'a, T, K: TableBuilderStyleResolver> TableBuilder<'a, T, K> {
             sheet.set_value(row + position as u32, col, header);
         }
 
-        let mut col = col + 1;
-        for input in inputs {
-            self.write_reversed_line(sheet, resolver, row, col, &input);
-            col += 1;
+        for (position, input) in inputs.into_iter().enumerate() {
+            self.write_reversed_line(sheet, resolver, row, position as u32 + col + 1, &input);
         }
-        col
+        self.headers.len() as u32
     }
 
     pub fn write_reversed_line(
