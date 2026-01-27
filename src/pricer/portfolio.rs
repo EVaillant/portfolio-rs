@@ -282,7 +282,7 @@ impl PortfolioIndicator {
             let nominal_without_output = previous_nominal + incoming_transfer;
             let pnl_percent =
                 primitive::pnl(valuation - outcoming_transfer, nominal_without_output).1;
-            valuation / (1.0 + pnl_percent)
+            valuation / (pnl_percent + 1.0)
         }
     }
 }
@@ -428,6 +428,136 @@ mod tests {
             assert_float_absolute_eq!(indicator.twr, 0.21, 1e-7);
 
             previous_indicators.push(indicator);
+        }
+    }
+
+    #[test]
+    fn compute_nominal() {
+        let currency = Rc::new(Currency {
+            name: String::from("EUR"),
+            parent_currency: None,
+        });
+
+        let portfolio = Portfolio {
+            name: "TEST".to_string(),
+            open: Date::from_ymd_opt(2022, 3, 17).unwrap(),
+            incoming_transfer_limit: None,
+            currency: currency.clone(),
+            positions: Default::default(),
+            cash: vec![
+                CashVariation {
+                    position: 1000.0,
+                    date: chrono::DateTime::parse_from_rfc3339("2022-03-17T10:00:00-00:00")
+                        .unwrap()
+                        .naive_local(),
+                    source: CashVariationSource::Payment,
+                },
+                CashVariation {
+                    position: 1500.0,
+                    date: chrono::DateTime::parse_from_rfc3339("2022-04-17T10:00:00-00:00")
+                        .unwrap()
+                        .naive_local(),
+                    source: CashVariationSource::Payment,
+                },
+                CashVariation {
+                    position: -100.0,
+                    date: chrono::DateTime::parse_from_rfc3339("2022-05-17T10:00:00-00:00")
+                        .unwrap()
+                        .naive_local(),
+                    source: CashVariationSource::Payment,
+                },
+            ],
+        };
+
+        let mut previous_indicators = Vec::new();
+        {
+            let nominal = PortfolioIndicator::compute_nominal_(
+                &portfolio,
+                chrono::NaiveDate::from_ymd_opt(2022, 3, 17).unwrap(),
+                &previous_indicators,
+                1500.0,
+            );
+            assert_float_absolute_eq!(nominal, 1000.0, 1e-7);
+
+            let nominal = PortfolioIndicator::compute_nominal_(
+                &portfolio,
+                chrono::NaiveDate::from_ymd_opt(2022, 3, 20).unwrap(),
+                &previous_indicators,
+                1500.0,
+            );
+            assert_float_absolute_eq!(nominal, 1000.0, 1e-7);
+
+            let nominal = PortfolioIndicator::compute_nominal_(
+                &portfolio,
+                chrono::NaiveDate::from_ymd_opt(2022, 4, 17).unwrap(),
+                &previous_indicators,
+                4000.0,
+            );
+            assert_float_absolute_eq!(nominal, 2500.0, 1e-7);
+
+            let nominal = PortfolioIndicator::compute_nominal_(
+                &portfolio,
+                chrono::NaiveDate::from_ymd_opt(2022, 4, 20).unwrap(),
+                &previous_indicators,
+                4000.0,
+            );
+            assert_float_absolute_eq!(nominal, 2500.0, 1e-7);
+        }
+
+        let indicator = PortfolioIndicator {
+            date: chrono::NaiveDate::from_ymd_opt(2022, 3, 18).unwrap(),
+            nominal: 1000.0,
+            ..Default::default()
+        };
+        previous_indicators.push(indicator);
+        {
+            let nominal = PortfolioIndicator::compute_nominal_(
+                &portfolio,
+                chrono::NaiveDate::from_ymd_opt(2022, 3, 17).unwrap(),
+                &previous_indicators,
+                1500.0,
+            );
+            assert_float_absolute_eq!(nominal, 1000.0, 1e-7);
+
+            let nominal = PortfolioIndicator::compute_nominal_(
+                &portfolio,
+                chrono::NaiveDate::from_ymd_opt(2022, 3, 20).unwrap(),
+                &previous_indicators,
+                1500.0,
+            );
+            assert_float_absolute_eq!(nominal, 1000.0, 1e-7);
+
+            let nominal = PortfolioIndicator::compute_nominal_(
+                &portfolio,
+                chrono::NaiveDate::from_ymd_opt(2022, 4, 17).unwrap(),
+                &previous_indicators,
+                4000.0,
+            );
+            assert_float_absolute_eq!(nominal, 2500.0, 1e-7);
+
+            let nominal = PortfolioIndicator::compute_nominal_(
+                &portfolio,
+                chrono::NaiveDate::from_ymd_opt(2022, 4, 20).unwrap(),
+                &previous_indicators,
+                4000.0,
+            );
+            assert_float_absolute_eq!(nominal, 2500.0, 1e-7);
+        }
+
+        let indicator = PortfolioIndicator {
+            date: chrono::NaiveDate::from_ymd_opt(2022, 4, 20).unwrap(),
+            nominal: 2500.0,
+            ..Default::default()
+        };
+        previous_indicators.push(indicator);
+        {
+            let nominal = PortfolioIndicator::compute_nominal_(
+                &portfolio,
+                chrono::NaiveDate::from_ymd_opt(2022, 5, 17).unwrap(),
+                &previous_indicators,
+                5000.0,
+            );
+            assert_float_absolute_eq!(nominal, 2450.9803921568628, 1e-7);
         }
     }
 }
