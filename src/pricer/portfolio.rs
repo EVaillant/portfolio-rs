@@ -145,8 +145,9 @@ impl PortfolioIndicator {
             .sum::<PositionAccumulator>();
 
         let cash = outcoming_transfer + incoming_transfer + other_transfer + accumulator.earning;
-        let nominal = cash + accumulator.nominal;
         let valuation = cash + accumulator.valuation;
+        let nominal = Self::compute_nominal_(portfolio, date, previous_indicators, valuation);
+
         let fees_percent = if valuation + accumulator.fees == 0.0 {
             0.0
         } else {
@@ -233,6 +234,55 @@ impl PortfolioIndicator {
             incoming_transfer,
             outcoming_transfer,
             cash,
+        }
+    }
+
+    fn compute_nominal_(
+        portfolio: &Portfolio,
+        date: Date,
+        previous_indicators: &[PortfolioIndicator],
+        valuation: f64,
+    ) -> f64 {
+        let previous_nominal = previous_indicators
+            .last()
+            .map(|previous| previous.nominal)
+            .unwrap_or(0.0);
+        let previous_date = previous_indicators.last().map(|previous| previous.date);
+
+        let incoming_transfer = portfolio
+            .cash
+            .iter()
+            .filter(|variation| {
+                previous_date
+                    .map(|value| variation.date.date() > value)
+                    .unwrap_or(true)
+                    && variation.date.date() <= date
+                    && variation.source == CashVariationSource::Payment
+                    && variation.position.is_sign_positive()
+            })
+            .map(|variation| variation.position)
+            .sum::<f64>();
+        let outcoming_transfer = portfolio
+            .cash
+            .iter()
+            .filter(|variation| {
+                previous_date
+                    .map(|value| variation.date.date() > value)
+                    .unwrap_or(true)
+                    && variation.date.date() <= date
+                    && variation.source == CashVariationSource::Payment
+                    && variation.position.is_sign_negative()
+            })
+            .map(|variation| variation.position)
+            .sum::<f64>();
+
+        if outcoming_transfer == 0.0 {
+            previous_nominal + incoming_transfer
+        } else {
+            let nominal_without_output = previous_nominal + incoming_transfer;
+            let pnl_percent =
+                primitive::pnl(valuation - outcoming_transfer, nominal_without_output).1;
+            valuation / (1.0 + pnl_percent)
         }
     }
 }
