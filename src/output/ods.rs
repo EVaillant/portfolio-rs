@@ -399,7 +399,7 @@ impl<'a> OdsOutput<'a> {
         limit_size: Option<usize>,
     ) -> u32 {
         let mut inputs = ClosePositionIndicator::from_portfolios(&self.indicators.portfolios);
-        inputs.sort_by(|left, right| right.close.cmp(&left.close));
+        inputs.sort_by_key(|right| std::cmp::Reverse(right.close));
         if inputs.is_empty() {
             return 0;
         }

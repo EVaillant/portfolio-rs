@@ -270,7 +270,7 @@ impl Deserialize for Position {
     {
         let instrument = deserializer.resolv_instrument("instrument")?;
         let mut trades: Vec<Trade> = deserializer.read("trades")?;
-        trades.sort_by(|left, right| left.date.cmp(&right.date));
+        trades.sort_by_key(|left| left.date);
         Ok(Position { instrument, trades })
     }
 }
@@ -302,7 +302,7 @@ impl Deserialize for Portfolio {
         let currency = deserializer.resolv_currency("currency")?;
         let positions = deserializer.read("positions")?;
         let mut cash: Vec<CashVariation> = deserializer.read("cash")?;
-        cash.sort_by(|left, right| left.date.cmp(&right.date));
+        cash.sort_by_key(|left| left.date);
         Ok(Portfolio {
             name,
             open,

@@ -83,7 +83,7 @@ impl Persistance for SQLitePersistance {
         for item in rows {
             datas.push(item?);
         }
-        datas.sort_by(|left, right| left.date.cmp(&right.date));
+        datas.sort_by_key(|left| left.date);
         let first = datas.first();
         let last = datas.last();
 
